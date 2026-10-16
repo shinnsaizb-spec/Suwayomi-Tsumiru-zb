@@ -19,7 +19,9 @@ import '../../../../utils/misc/toast/toast.dart';
 import '../../../history/presentation/history_controller.dart';
 import '../../../library/presentation/library/controller/library_controller.dart';
 import '../../../library/presentation/library/controller/library_manga_list.dart';
+import '../../../offline/data/offline_cache_everything.dart';
 import '../../../offline/data/offline_download_providers.dart';
+import '../../../offline/data/offline_types.dart';
 import '../../../settings/presentation/general/widgets/force_portrait_tile.dart';
 import '../../../settings/presentation/incognito/incognito_mode.dart';
 import '../../../settings/presentation/reader/widgets/reader_auto_webtoon_mode/reader_auto_webtoon_mode.dart';
@@ -76,6 +78,31 @@ class ReaderScreen extends HookConsumerWidget {
     // opening chapter, so the opening data is pinned for the screen's life.
     final pinnedChapter = _usePinned(chapter.value, chapterId);
     final pinnedChapterPages = _usePinned(chapterPages.value, chapterId);
+
+    // Full offline cache: the pages of a chapter being read are kept on this
+    // device, so re-opening it (offline or not) needs no network. The save is
+    // idempotent — chapters already queued, downloading or saved are skipped.
+    //
+    // Only for series that ARE in the library. The used-to-be-unconditional
+    // save also fired for a series opened straight from the extension browser
+    // and never added: browsing it quietly queued its chapters on the server's
+    // download queue (visible in the server's WebUI and in this app's Downloads
+    // screen) — the reported "browsed series auto-downloads" bug. `null` means
+    // the metadata hasn't landed yet; it is in the deps below, so the effect
+    // re-runs once it resolves, and a series that never resolves is not in the
+    // mirrored library.
+    final inLibrary = manga.value?.inLibrary;
+    useEffect(() {
+      if (!(ref.read(offlineCacheEverythingProvider) ?? false)) return null;
+      if (inLibrary != true) return null;
+      final state = ref.read(offlineChapterStateProvider(chapterId)).value;
+      if (state == null ||
+          state == OfflineDeviceState.none ||
+          state == OfflineDeviceState.error) {
+        unawaited(saveChapterToDevice(ref, chapterId));
+      }
+      return null;
+    }, [chapterId, inLibrary]);
 
     // Auto reading mode: a Default-mode long-strip series (manhwa/manhua/
     // webtoon) opens in webtoon scroll THIS session; never written to meta.

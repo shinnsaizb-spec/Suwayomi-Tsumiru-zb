@@ -49,20 +49,20 @@ class OfflineSaveButton extends ConsumerWidget {
         child: _DownloadingIndicator(chapterId: chapterId),
       ),
       OfflineDeviceState.downloaded => IconButton(
-        tooltip: 'Remove from device',
+        tooltip: context.l10n.removeFromDevice,
         icon: Icon(Icons.offline_pin_rounded, color: cs.primary),
         onPressed: () => deleteChapterFromDevice(ref, chapterId),
       ),
       OfflineDeviceState.error => IconButton(
         tooltip: canDownload
-            ? 'Save failed — retry'
+            ? context.l10n.saveFailedRetry
             : context.l10n.accountPermissionDenied,
         icon: Icon(Icons.error_outline_rounded, color: cs.error),
         onPressed: canDownload ? () => _save(context, ref) : null,
       ),
       OfflineDeviceState.none || OfflineDeviceState.orphaned => IconButton(
         tooltip: canDownload
-            ? 'Save to device'
+            ? context.l10n.saveToDevice
             : context.l10n.accountPermissionDenied,
         // Muted = a "get it" button (vs the solid-indigo "on device" badge).
         icon: Icon(Icons.save_alt_rounded, color: cs.onSurfaceVariant),

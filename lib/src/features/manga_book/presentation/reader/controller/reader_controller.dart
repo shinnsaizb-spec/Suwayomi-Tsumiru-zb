@@ -10,6 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../offline/data/background/background_download_controller_shim.dart';
 import '../../../../offline/data/offline_download_providers.dart';
+import '../../../../offline/data/offline_cache_everything.dart';
 import '../../../../offline/data/offline_read_fallback.dart';
 import '../../../../offline/data/offline_repository.dart';
 import '../../../../offline/data/offline_types.dart';
@@ -29,11 +30,17 @@ FutureOr<ChapterDto?> chapter(Ref ref, {required int chapterId}) =>
           .watch(mangaBookRepositoryProvider)
           .getChapter(chapterId: chapterId),
       // Only read the native-only DB when offline is available (never on web).
+      // `offlineActive` is deliberately not used here: it watches the server's
+      // instance id, which needs the network, so with the server down it
+      // returned false and disabled this fallback — the reader then sat out the
+      // connection timeout before opening a chapter that is already on disk.
       db: ref.watch(offlineReadDatabaseProvider),
-      offlineEnabled: ref.watch(offlineActiveProvider),
+      offlineEnabled: ref.watch(offlineReadDatabaseProvider) != null,
       offlineFirst:
           ref.watch(viewOfflineNowProvider) ||
-          ref.watch(serverUnreachableProvider),
+          ref.watch(serverUnreachableProvider) ||
+          // Full cache is local-first here too.
+          (ref.watch(offlineCacheEverythingProvider) ?? false),
       chapterId: chapterId,
     );
 

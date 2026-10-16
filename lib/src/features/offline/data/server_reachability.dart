@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../utils/crash/diagnostics.dart';
@@ -54,3 +55,25 @@ class ViewOfflineNow extends _$ViewOfflineNow {
     if (state != value) state = value;
   }
 }
+
+/// Whether a server request is in flight right now.
+///
+/// The library opens on the on-device catalog and checks the server behind it
+/// (see `CategoryController`/`libraryMangaList`), so "connected or not" alone
+/// cannot tell the user anything is happening. This flag does, and the library
+/// app bar shows it as a spinner. Set by the same read path that maintains
+/// [serverUnreachableProvider].
+///
+/// Hand-written rather than generated so enabling it needs no code generation
+/// run.
+class ServerConnecting extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) {
+    if (state != value) state = value;
+  }
+}
+
+final serverConnectingProvider =
+    NotifierProvider<ServerConnecting, bool>(ServerConnecting.new);

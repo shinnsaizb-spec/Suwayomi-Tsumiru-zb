@@ -135,28 +135,28 @@ flutter:
 # they only generated a second, identical copy of every image.
 flutter_native_splash:
   color: "#0b0d1a"
-  image: assets/icons/launcher/splash_icon.png
+  image: assets/icons/launcher/zb_splash_icon.png
   android_12:
     color: "#0b0d1a"
     icon_background_color: "#0b0d1a"
-    image: assets/icons/launcher/splash_icon.png
+    image: assets/icons/launcher/zb_splash_icon.png
 
 flutter_launcher_icons:
   android: "launcher_icon"
   adaptive_icon_background: "#02061D"
-  adaptive_icon_foreground: "assets/icons/launcher/tsumiru_icon_fg.png"
+  adaptive_icon_foreground: "assets/icons/launcher/zb_icon_fg.png"
   ios: true
   remove_alpha_ios: true
-  image_path: "assets/icons/launcher/tsumiru_icon.png"
-  image_path_ios: "assets/icons/launcher/tsumiru_icon.png"
+  image_path: "assets/icons/launcher/zb_icon.png"
+  image_path_ios: "assets/icons/launcher/zb_icon.png"
   web:
     generate: true
-    image_path: "assets/icons/launcher/tsumiru_icon.png"
+    image_path: "assets/icons/launcher/zb_icon.png"
     background_color: "#02061D"
     theme_color: "#7c7bff"
   windows:
     generate: true
-    image_path: "assets/icons/launcher/tsumiru_icon_rounded.png"
+    image_path: "assets/icons/launcher/zb_icon_rounded.png"
   macos:
     generate: true
-    image_path: "assets/icons/launcher/tsumiru_icon_rounded.png"
+    image_path: "assets/icons/launcher/zb_icon_rounded.png"

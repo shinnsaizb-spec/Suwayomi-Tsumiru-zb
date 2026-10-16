@@ -1,6 +1,6 @@
 {
-    "name": "Tsumiru",
-    "short_name": "Tsumiru",
+    "name": "zb-manga",
+    "short_name": "zb-manga",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#02061D",

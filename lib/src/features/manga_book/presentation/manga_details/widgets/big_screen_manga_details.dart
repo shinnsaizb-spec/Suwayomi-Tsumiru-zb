@@ -22,7 +22,6 @@ import 'chapter_list_mode_toggle.dart';
 import 'chapter_list_tile.dart';
 import 'manga_description.dart';
 import 'missing_chapters_tile.dart';
-import 'recommends_row.dart';
 
 class BigScreenMangaDetails extends ConsumerWidget {
   const BigScreenMangaDetails({
@@ -68,8 +67,6 @@ class BigScreenMangaDetails extends ConsumerWidget {
                         addMangaToLibraryWithCategory(ref, context, manga)),
                     refresh: () => onDescriptionRefresh(false),
                   ),
-                  if (manga.title.isNotBlank)
-                    RecommendsRow(mangaId: mangaId, mangaTitle: manga.title),
                 ],
               ),
             ),

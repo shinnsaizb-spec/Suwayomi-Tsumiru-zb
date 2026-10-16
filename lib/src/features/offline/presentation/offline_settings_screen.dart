@@ -5,6 +5,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../utils/extensions/custom_extensions.dart';
@@ -13,13 +14,15 @@ import '../../../utils/platform/is_android_native.dart';
 import '../../../widgets/input_popup/domain/settings_prop_type.dart';
 import '../../../widgets/input_popup/settings_prop_tile.dart';
 import '../../../widgets/section_title.dart';
+import '../data/offline_cache_everything.dart';
+import '../data/offline_download_providers.dart';
+import '../data/offline_settings_providers.dart';
+import '../data/server_connection_probe.dart';
 import '../../auth/data/auth_credentials_store.dart';
 import '../../notifications/controller/notification_settings_providers.dart';
 import '../../notifications/controller/notifications_controller.dart';
 import '../data/background/catchup_settings.dart';
-import '../data/offline_download_providers.dart';
 import '../data/offline_repository.dart';
-import '../data/offline_settings_providers.dart';
 import 'inactive_account_catalogue_tiles.dart';
 import 'offline_server_mismatch_banner.dart';
 import 'offline_settings_format.dart';
@@ -40,6 +43,24 @@ List<Widget> buildOnDeviceStorageTiles(BuildContext context, WidgetRef ref) {
   return [
     const InactiveAccountCatalogueTiles(),
     const OfflineServerMismatchBanner(showAfterDismissal: true),
+    // Master switch for the full offline cache, above the storage knobs it
+    // feeds: it decides how much of the library lives on this device at all.
+    SectionTitle(title: context.l10n.offlineCacheSection),
+    SettingsPropTile(
+      title: context.l10n.offlineCacheEverything,
+      subtitle: context.l10n.offlineCacheEverythingDescription,
+      leading: const Icon(Icons.cloud_download_rounded),
+      type: SettingsPropType.switchTile(
+        value: ref.watch(offlineCacheEverythingProvider) ?? false,
+        onChanged: (v) async {
+          ref.read(offlineCacheEverythingProvider.notifier).update(v);
+          return null;
+        },
+      ),
+    ),
+    // Sits under the master switch: it decides how the library's connection
+    // indicator behaves when the server can't be reached.
+    const _ServerProbeRetryTile(),
     SectionTitle(title: context.l10n.offlineStorageSection),
     ListTile(
       title: Text(context.l10n.offlineStorageUsage),
@@ -234,4 +255,65 @@ class OfflineSettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// How often the library's connection probe retries while the server is
+/// unreachable. Empty means it does not retry on its own: the user taps the
+/// connection icon in the library's app bar instead.
+class _ServerProbeRetryTile extends ConsumerStatefulWidget {
+  const _ServerProbeRetryTile();
+
+  @override
+  ConsumerState<_ServerProbeRetryTile> createState() =>
+      _ServerProbeRetryTileState();
+}
+
+class _ServerProbeRetryTileState extends ConsumerState<_ServerProbeRetryTile> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final seconds = ref.read(serverProbeRetrySecondsProvider);
+    _controller = TextEditingController(
+      text: (seconds == null || seconds <= 0) ? '' : '$seconds',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _apply() {
+    final seconds = int.tryParse(_controller.text.trim());
+    ref
+        .read(serverProbeRetrySecondsProvider.notifier)
+        .update(
+          (seconds != null && seconds > 0) ? seconds.clamp(1, 24 * 60 * 60) : 0,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: const Icon(Icons.cloud_sync_rounded),
+    title: Text(context.l10n.connectionRetryInterval),
+    subtitle: Text(context.l10n.connectionRetryIntervalDescription),
+    trailing: SizedBox(
+      width: 96,
+      child: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        decoration: InputDecoration(
+          hintText: context.l10n.off,
+          isDense: true,
+          border: const OutlineInputBorder(),
+        ),
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onSubmitted: (_) => _apply(),
+      ),
+    ),
+  );
 }

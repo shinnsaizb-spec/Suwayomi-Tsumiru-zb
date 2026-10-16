@@ -87,6 +87,9 @@ class OfflineSync {
         sourceContentWarning: manga.source?.contentWarning.name,
         genre: manga.genre.isEmpty ? null : jsonEncode(manga.genre),
         status: manga.status.name,
+        description: manga.description,
+        artist: manga.artist,
+        author: manga.author,
         unreadCount: manga.unreadCount,
         downloadCount: manga.downloadCount,
         bookmarkCount: manga.bookmarkCount,
@@ -361,7 +364,12 @@ class OfflineSync {
           cat.name,
           cat.order,
           isHidden: cat.isHidden,
-          isDefaultCategory: cat.id == defaultCategoryId,
+          // The server's own `default` flag is authoritative, so the mirror
+          // knows the default category even when the caller couldn't resolve
+          // the default id (the library's default-category lookup reads this
+          // back from the mirror, and a mirror without a default left every
+          // catalog-served tab empty).
+          isDefaultCategory: cat.defaultCategory || cat.id == defaultCategoryId,
           autoAdd: cat.defaultCategory,
         );
       }

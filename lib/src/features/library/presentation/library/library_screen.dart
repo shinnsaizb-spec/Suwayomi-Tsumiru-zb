@@ -23,7 +23,9 @@ import '../../../../widgets/emoticons.dart';
 import '../../../../widgets/search_field.dart';
 import '../../../../widgets/shell/update_banner_state.dart';
 import '../../../manga_book/data/updates/updates_repository.dart';
+import '../../../manga_book/domain/manga/manga_model.dart';
 import '../../../manga_book/widgets/update_status_popup_menu.dart';
+import '../../../manga_collection/domain/collection_model.dart';
 import '../../../offline/data/server_reachability.dart';
 import '../../../offline/presentation/offline_server_mismatch_banner.dart';
 import '../../../offline/presentation/offline_view_loading.dart';
@@ -37,6 +39,7 @@ import 'category_manga_list.dart';
 import 'controller/library_controller.dart';
 import 'controller/library_grouping.dart';
 import 'controller/library_manga_list.dart';
+import 'widgets/library_connection_button.dart';
 import 'widgets/library_manga_grid_view.dart';
 import 'widgets/library_manga_organizer.dart';
 import 'widgets/library_sections_view.dart';
@@ -271,6 +274,10 @@ class _DefaultLibraryToggledSearch extends HookConsumerWidget {
       context,
       loadingWidget: const OfflineViewLoading(),
       offlineEscapeHatch: true,
+      // The background server check behind a local-first shelf must not swap the
+      // shelf for a loading spinner mid-scroll — keep the current data on screen
+      // and let the new one replace it.
+      skipLoadingOnReload: true,
       (data) {
         if (data.isBlank) {
           return Emoticons(
@@ -360,6 +367,10 @@ class _DefaultLibraryToggledSearch extends HookConsumerWidget {
                 actions: showSearch
                     ? const [SizedBox.shrink()]
                     : [
+                        // Connection state, parked next to search: a spinner
+                        // while the server is being checked, offline icon when
+                        // it isn't reachable, tappable to retry.
+                        const LibraryConnectionButton(),
                         IconButton(
                           onPressed: () => searchToggled.value = true,
                           icon: const Icon(Icons.search_rounded),
@@ -457,6 +468,10 @@ class _DefaultLibraryStickySearch extends HookConsumerWidget {
       context,
       loadingWidget: const OfflineViewLoading(),
       offlineEscapeHatch: true,
+      // The background server check behind a local-first shelf must not swap the
+      // shelf for a loading spinner mid-scroll — keep the current data on screen
+      // and let the new one replace it.
+      skipLoadingOnReload: true,
       (data) {
         if (data.isBlank) {
           return Scaffold(
@@ -516,6 +531,7 @@ class _DefaultLibraryStickySearch extends HookConsumerWidget {
                         ? const _LibrarySearchBar(inAppBar: true)
                         : _LibraryTitle(sections: _categorySections(data)),
                     actions: [
+                      const LibraryConnectionButton(),
                       _organizerButton(),
                       SyncYomiSyncButton(
                         onSynced: () => _refreshLibraryAfterSync(ref),
@@ -722,6 +738,7 @@ class _GroupedLibraryToggledSearch extends HookConsumerWidget {
               actions: showSearch
                   ? const [SizedBox.shrink()]
                   : [
+                      const LibraryConnectionButton(),
                       IconButton(
                         onPressed: () => searchToggled.value = true,
                         icon: const Icon(Icons.search_rounded),
@@ -756,6 +773,7 @@ class _GroupedLibraryToggledSearch extends HookConsumerWidget {
                   final content = _GroupedMangaList(
                     key: ValueKey(t.id),
                     tabId: t.id,
+                    showCollections: t.id == tabs.first.id,
                   );
                   return showInlineHeaders
                       ? _PagedSection(
@@ -866,6 +884,7 @@ class _GroupedLibraryStickySearch extends HookConsumerWidget {
                         ? const _LibrarySearchBar(inAppBar: true)
                         : _LibraryTitle(sections: _groupSections(tabs)),
                     actions: [
+                      const LibraryConnectionButton(),
                       _organizerButton(),
                       SyncYomiSyncButton(
                         onSynced: () => _refreshLibraryAfterSync(ref),
@@ -913,6 +932,7 @@ class _GroupedLibraryStickySearch extends HookConsumerWidget {
                         final content = _GroupedMangaList(
                           key: ValueKey(t.id),
                           tabId: t.id,
+                          showCollections: t.id == tabs.first.id,
                         );
                         return showInlineHeaders
                             ? _PagedSection(
@@ -1050,25 +1070,46 @@ class _PagedSection extends ConsumerWidget {
 
 /// A manga grid/list for a non-default group tab (BY_SOURCE, BY_STATUS,
 /// UNGROUPED), fed from [groupedMangaListWithQueryAndFilterProvider].
+///
+/// Grouped tabs have no categories to file collections under, so the
+/// uncategorised collections ride in the first tab's grid (they still sit among
+/// the manga, exactly like a manga entry).
 class _GroupedMangaList extends ConsumerWidget {
-  const _GroupedMangaList({super.key, required this.tabId});
+  const _GroupedMangaList({
+    super.key,
+    required this.tabId,
+    this.showCollections = false,
+  });
   final int tabId;
+  final bool showCollections;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mangaListAsync = ref.watch(
       groupedMangaListWithQueryAndFilterProvider(tabId: tabId),
     );
+    final collections = showCollections
+        ? ref.watch(
+            filteredSectionCollectionsProvider((
+              sectionId: tabId,
+              byCategory: false,
+            )),
+          )
+        : const <Collection>[];
 
     return mangaListAsync.showUiWhenData(
       context,
       loadingWidget: const OfflineViewLoading(),
       offlineEscapeHatch: true,
+      // Same reason: the shelf is served locally first and the server check
+      // lands behind it, which must not flash a spinner.
+      skipLoadingOnReload: true,
       (data) {
-        if (data == null || data.isEmpty) {
+        final items = data ?? const <MangaDto>[];
+        // A group that only holds collections is not empty.
+        if (items.isEmpty && collections.isEmpty) {
           return Emoticons(title: context.l10n.noCategoryMangaFound);
         }
-        final items = data;
         return RefreshIndicator(
           // Grouped views (by source/status/ungrouped) have no single category
           // to update, so pull triggers a whole-library source-check (matches
@@ -1090,6 +1131,7 @@ class _GroupedMangaList extends ConsumerWidget {
           },
           child: LibraryMangaGridView(
             items: items,
+            collections: collections,
             onOpen: (manga) => MangaRoute(mangaId: manga.id).push(context),
           ),
         );

@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../../features/offline/data/offline_cache_everything.dart';
 import '../../../../../features/offline/data/offline_read_fallback.dart';
 import '../../../../../features/offline/data/offline_repository.dart';
 import '../../../../../features/offline/data/server_reachability.dart';
@@ -32,8 +33,16 @@ class CategoryController extends _$CategoryController {
     final viewOffline =
         ref.watch(viewOfflineNowProvider) ||
         ref.watch(serverUnreachableProvider);
+    // Full offline cache serves the tabs from the on-device catalog too. This
+    // list gates the whole library screen, so without it the shelf fell back to
+    // "can't reach the server" even though every category was mirrored.
+    final fullCache = ref.watch(offlineCacheEverythingProvider).ifNull(false);
     final categoryRepository = ref.watch(categoryRepositoryProvider);
-    final sync = ref.read(offlineSyncProvider);
+    // WATCHED, not read: this provider can first build before the server
+    // identity is known, in which case the sync layer is still null and the
+    // mirror below would never be seeded — and nothing would re-run this build
+    // to notice. Watching rebuilds it as soon as sync becomes available.
+    final sync = ref.watch(offlineSyncProvider);
     final defaultIdFuture = ref.watch(defaultCategoryIdProvider.future);
     final defaultId = await defaultIdFuture.catchError((Object _) => null);
     var servedFromCatalog = false;
@@ -41,16 +50,55 @@ class CategoryController extends _$CategoryController {
       fetch: () => categoryRepository.getCategoryList(),
       db: offlineDb,
       offlineEnabled: offlineDb != null,
-      offlineFirst: viewOffline,
+      // Full cache opens the tabs on the on-device catalog and checks the
+      // server behind it, so a shelf full of mirrored series never waits on the
+      // network (and never blanks out when it fails).
+      offlineFirst: viewOffline || fullCache,
+      fullCache: fullCache,
       defaultCategoryId: defaultId,
       onCatalogServe: () => servedFromCatalog = true,
     );
-    // A catalog-served list is an echo — never mirror it back.
-    if (sync != null &&
-        result != null &&
-        defaultId != null &&
-        !servedFromCatalog) {
+    // A catalog-served list is an echo — never mirror it back. The default id
+    // is NOT required: the mirror records the server's own `default` flag on
+    // each category, so a list fetched before the default id resolved still
+    // seeds it (and a mirror with no default used to leave the shelf blank).
+    if (sync != null && result != null && !servedFromCatalog) {
       unawaited(sync.syncCategories(result, defaultCategoryId: defaultId));
+    }
+    // Served from the catalog while the full cache is on: check the server in
+    // the background and adopt its answer when it lands. Deferred past this
+    // build (Riverpod forbids touching another provider mid-build) and
+    // throttled, because the rebuild it triggers would otherwise start another
+    // fetch straight away.
+    if (fullCache && servedFromCatalog) {
+      final lastRefresh = ref.read(fullCacheRefreshClockProvider);
+      final due =
+          lastRefresh == null ||
+          DateTime.now().difference(lastRefresh) > kFullCacheRefreshInterval;
+      if (due) {
+        Future(() async {
+          if (!ref.mounted) return;
+          try {
+            ref.read(fullCacheRefreshClockProvider.notifier).mark();
+          } catch (_) {}
+          try {
+            final fresh = await categoryRepository.getCategoryList();
+            if (!ref.mounted || fresh == null) return;
+            // Same rule as the mirror above: the server's own `default` flag
+            // seeds the mirror, so a still-unresolved default id is not a
+            // reason to skip it.
+            if (sync != null) {
+              unawaited(
+                sync.syncCategories(fresh, defaultCategoryId: defaultId),
+              );
+            }
+            ref.invalidateSelf();
+          } catch (_) {
+            // The catalog tabs stay; the app bar's connection state reports the
+            // outage.
+          }
+        });
+      }
     }
     return result;
   }

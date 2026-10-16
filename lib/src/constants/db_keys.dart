@@ -341,7 +341,18 @@ enum DBKeys {
   colorFilterValue(0),
   colorFilterBlendMode(ColorFilterBlendMode.defaultBlend),
   grayscale(false),
-  invertedColors(false);
+  invertedColors(false),
+
+  // Full offline cache ("cache everything"): mirror the whole library —
+  // metadata, chapter lists and covers — into the on-device catalog and serve
+  // the library from it first, refreshing from the server in the background.
+  // Off by default: it mirrors far more than the download-based cache does.
+  offlineCacheEverything(false),
+
+  // How often the library's connection probe retries while the server is
+  // unreachable, in seconds. 0 (the default) means it does not retry on its
+  // own: the user taps the connection icon to try again.
+  serverProbeRetrySeconds(0);
 
   const DBKeys(this.initial);
 

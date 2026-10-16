@@ -4,6 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../../../utils/crash/diagnostics.dart';
@@ -51,6 +53,11 @@ class OfflineMangas extends Table {
   // on these, so without them the filter behaves differently offline.
   TextColumn get genre => text().nullable()();
   TextColumn get status => text().nullable()();
+  // Long-form server metadata, mirrored so the offline details page shows the
+  // same synopsis and credits as the server's own page.
+  TextColumn get description => text().nullable()();
+  TextColumn get artist => text().nullable()();
+  TextColumn get author => text().nullable()();
   IntColumn get unreadCount => integer().withDefault(const Constant(0))();
   IntColumn get downloadCount => integer().withDefault(const Constant(0))();
   IntColumn get bookmarkCount => integer().withDefault(const Constant(0))();
@@ -248,7 +255,7 @@ class OfflineDatabase extends _$OfflineDatabase {
   OfflineDatabase(super.e);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -501,6 +508,13 @@ class OfflineDatabase extends _$OfflineDatabase {
           offlineChapters.fetchedAt,
         );
       }
+      // 19: long-form metadata (synopsis, artist, author) so the offline
+      // details page matches the server's.
+      if (from < 19 && await _hasTable(offlineMangas)) {
+        await _addColumnIfMissing(m, offlineMangas, offlineMangas.description);
+        await _addColumnIfMissing(m, offlineMangas, offlineMangas.artist);
+        await _addColumnIfMissing(m, offlineMangas, offlineMangas.author);
+      }
     },
     beforeOpen: (details) async {
       if (!details.wasCreated) await _addMissingColumns();
@@ -623,6 +637,9 @@ class OfflineDatabase extends _$OfflineDatabase {
     String? sourceContentWarning,
     String? genre,
     String? status,
+    String? description,
+    String? artist,
+    String? author,
     int unreadCount = 0,
     int downloadCount = 0,
     int bookmarkCount = 0,
@@ -648,6 +665,9 @@ class OfflineDatabase extends _$OfflineDatabase {
       sourceContentWarning: Value(sourceContentWarning),
       genre: Value(genre),
       status: Value(status),
+      description: Value(description),
+      artist: Value(artist),
+      author: Value(author),
       unreadCount: Value(unreadCount),
       downloadCount: Value(downloadCount),
       bookmarkCount: Value(bookmarkCount),
@@ -667,6 +687,50 @@ class OfflineDatabase extends _$OfflineDatabase {
       chapterSortMode: Value(chapterSortMode),
     ),
   );
+
+  /// Merges one meta key into a manga's mirrored meta JSON.
+  ///
+  /// Per-series meta (rating, tags, reader prefs) is written straight to the
+  /// server, but the details page and the library list are served from this
+  /// catalog whenever the full offline cache is on — so a write that isn't
+  /// mirrored here is invisible, and the catalog's stale copy keeps being
+  /// served back (rating a series looked like it did nothing). A series with no
+  /// mirrored row (a browsed series) is left alone: nothing to update.
+  Future<void> mergeMangaMeta(int mangaId, String key, String value) =>
+      _editMangaMeta(mangaId, (meta) => meta[key] = value);
+
+  /// Drops one meta key from a manga's mirrored meta JSON (see
+  /// [mergeMangaMeta]).
+  Future<void> removeMangaMeta(int mangaId, String key) =>
+      _editMangaMeta(mangaId, (meta) => meta.remove(key));
+
+  Future<void> _editMangaMeta(
+    int mangaId,
+    void Function(Map<String, String> meta) edit,
+  ) => transaction(() async {
+    final row = await (select(
+      offlineMangas,
+    )..where((t) => t.id.equals(mangaId))).getSingleOrNull();
+    if (row == null) return;
+    final meta = _decodeMirroredMeta(row.metaJson);
+    edit(meta);
+    await (update(offlineMangas)..where((t) => t.id.equals(mangaId))).write(
+      OfflineMangasCompanion(metaJson: Value(jsonEncode(meta))),
+    );
+  });
+
+  static Map<String, String> _decodeMirroredMeta(String? metaJson) {
+    if (metaJson == null || metaJson.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(metaJson);
+      if (decoded is Map) {
+        return {for (final e in decoded.entries) '${e.key}': '${e.value}'};
+      }
+    } catch (_) {
+      // A corrupt blob must not block the write — start from empty.
+    }
+    return {};
+  }
 
   Future<void> upsertChapterMetadata({
     required int id,

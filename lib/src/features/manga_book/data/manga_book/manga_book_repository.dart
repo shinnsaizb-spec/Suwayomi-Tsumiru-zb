@@ -9,8 +9,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../global_providers/global_providers.dart';
 import '../../../../graphql/__generated__/schema.graphql.dart';
+import '../../../../utils/crash/diagnostics.dart';
 import '../../../../utils/extensions/custom_extensions.dart';
 import '../../../library/domain/category/category_model.dart';
+import '../../../offline/data/offline_repository.dart';
 import '../../domain/chapter/chapter_model.dart';
 import '../../domain/chapter_batch/chapter_batch_model.dart';
 import '../../domain/chapter_page/chapter_page_model.dart';
@@ -20,8 +22,18 @@ import './__generated__/query.graphql.dart';
 part 'manga_book_repository.g.dart';
 
 class MangaBookRepository {
-  const MangaBookRepository(this.client);
+  const MangaBookRepository(this.client, {this.mirrorMangaMeta});
   final GraphQLClient client;
+
+  /// Mirrors a per-series meta write into the on-device catalog (see
+  /// [OfflineDatabase.mergeMangaMeta]), so the change is visible on the
+  /// catalog-served details page and library list. Injected as a callback
+  /// rather than imported, keeping this data-layer class free of any
+  /// dependency on the offline feature. Null when there is no catalog.
+  ///
+  /// A null [value] removes the key (see [deleteMangaMeta]).
+  final Future<void> Function(int mangaId, String key, String? value)?
+  mirrorMangaMeta;
 
   Future<MangaDto?> addMangaToLibrary(int mangaId) => client
       .mutate$UpdateManga(
@@ -87,25 +99,23 @@ class MangaBookRepository {
       .getData((data) {});
 
   // Mangas
-  Future<MangaDto?> getManga({
-    required int mangaId,
-  }) =>
-      client
-          .query$GetManga(Options$Query$GetManga(
-            variables: Variables$Query$GetManga(id: mangaId),
-          ))
-          .getData((data) => data.manga);
+  Future<MangaDto?> getManga({required int mangaId}) => client
+      .query$GetManga(
+        Options$Query$GetManga(
+          variables: Variables$Query$GetManga(id: mangaId),
+        ),
+      )
+      .getData((data) => data.manga);
 
   Future<List<CategoryDto>?> getMangaCategoryList({
     required int mangaId,
-  }) async =>
-      client
-          .query$GetMangaCategories(
-            Options$Query$GetMangaCategories(
-              variables: Variables$Query$GetMangaCategories(id: mangaId),
-            ),
-          )
-          .getData((data) => data.manga.categories.nodes);
+  }) async => client
+      .query$GetMangaCategories(
+        Options$Query$GetMangaCategories(
+          variables: Variables$Query$GetMangaCategories(id: mangaId),
+        ),
+      )
+      .getData((data) => data.manga.categories.nodes);
 
   Future<void> addMangaToCategory(int mangaId, int categoryId) => client
       .mutate$UpdateMangaCategories(
@@ -143,46 +153,39 @@ class MangaBookRepository {
     List<int> mangaIds, {
     List<int> addTo = const [],
     List<int> removeFrom = const [],
-  }) =>
-      client
-          .mutate$UpdateMangasCategories(
-            Options$Mutation$UpdateMangasCategories(
-              variables: Variables$Mutation$UpdateMangasCategories(
-                input: Input$UpdateMangasCategoriesInput(
-                  ids: mangaIds,
-                  patch: Input$UpdateMangaCategoriesPatchInput(
-                    addToCategories: addTo,
-                    removeFromCategories: removeFrom,
-                  ),
-                ),
+  }) => client
+      .mutate$UpdateMangasCategories(
+        Options$Mutation$UpdateMangasCategories(
+          variables: Variables$Mutation$UpdateMangasCategories(
+            input: Input$UpdateMangasCategoriesInput(
+              ids: mangaIds,
+              patch: Input$UpdateMangaCategoriesPatchInput(
+                addToCategories: addTo,
+                removeFromCategories: removeFrom,
               ),
             ),
-          )
-          .getData((data) {});
+          ),
+        ),
+      )
+      .getData((data) {});
 
   // Chapters
 
-  Future<ChapterDto?> getChapter({
-    required int chapterId,
-  }) async =>
-      client
-          .query$GetChapter(
-            Options$Query$GetChapter(
-              variables: Variables$Query$GetChapter(
-                id: chapterId,
-              ),
-            ),
-          )
-          .getData((data) => data.chapter);
+  Future<ChapterDto?> getChapter({required int chapterId}) async => client
+      .query$GetChapter(
+        Options$Query$GetChapter(
+          variables: Variables$Query$GetChapter(id: chapterId),
+        ),
+      )
+      .getData((data) => data.chapter);
 
-  Future<ChapterPagesDto?> getChapterPages({
-    required int chapterId,
-  }) async =>
+  Future<ChapterPagesDto?> getChapterPages({required int chapterId}) async =>
       client
           .mutate$GetChapterPages(
             Options$Mutation$GetChapterPages(
               variables: Variables$Mutation$GetChapterPages(
-                  input: Input$FetchChapterPagesInput(chapterId: chapterId)),
+                input: Input$FetchChapterPagesInput(chapterId: chapterId),
+              ),
             ),
           )
           .getData((data) => data.fetchChapterPages);
@@ -190,61 +193,78 @@ class MangaBookRepository {
   Future<void> putChapter({
     required int chapterId,
     required ChapterChange patch,
-  }) =>
-      client
-          .mutate$UpdateChapter(
-            Options$Mutation$UpdateChapter(
-              variables: Variables$Mutation$UpdateChapter(
-                input: Input$UpdateChapterInput(
-                  id: chapterId,
-                  patch: patch,
-                ),
-              ),
-            ),
-          )
-          // Surface a failed mutation as a throw (like every other call here),
-          // so offline callers detect the failure and keep the change pending
-          // instead of clearing the dirty flag on a push that never landed.
-          .getData((data) {});
+  }) => client
+      .mutate$UpdateChapter(
+        Options$Mutation$UpdateChapter(
+          variables: Variables$Mutation$UpdateChapter(
+            input: Input$UpdateChapterInput(id: chapterId, patch: patch),
+          ),
+        ),
+      )
+      // Surface a failed mutation as a throw (like every other call here),
+      // so offline callers detect the failure and keep the change pending
+      // instead of clearing the dirty flag on a push that never landed.
+      .getData((data) {});
 
   Future<void> patchMangaMeta({
     required int mangaId,
     required String key,
     required dynamic value,
-  }) async =>
-      client
-          .mutate$SetMangaMeta(
-            Options$Mutation$SetMangaMeta(
-              variables: Variables$Mutation$SetMangaMeta(
-                input: Input$SetMangaMetaInput(
-                  meta: Input$MangaMetaTypeInput(
-                    key: key,
-                    mangaId: mangaId,
-                    value: value,
-                  ),
+  }) async {
+    await client
+        .mutate$SetMangaMeta(
+          Options$Mutation$SetMangaMeta(
+            variables: Variables$Mutation$SetMangaMeta(
+              input: Input$SetMangaMetaInput(
+                meta: Input$MangaMetaTypeInput(
+                  key: key,
+                  mangaId: mangaId,
+                  value: value,
                 ),
               ),
             ),
-          )
-          .getData((data) {});
+          ),
+        )
+        .getData((data) {});
+    // Write through to the catalog. With the full offline cache on, the
+    // details page and the library list are served from it, so a meta write
+    // that only reached the server was invisible — and the stale mirrored copy
+    // kept being served back.
+    await _mirrorMeta(mangaId, key, value is String ? value : '$value');
+  }
 
   /// Removes a per-series meta override so the app-wide default applies again.
   Future<void> deleteMangaMeta({
     required int mangaId,
     required String key,
-  }) async =>
-      client
-          .mutate$DeleteMangaMeta(
-            Options$Mutation$DeleteMangaMeta(
-              variables: Variables$Mutation$DeleteMangaMeta(
-                input: Input$DeleteMangaMetaInput(
-                  key: key,
-                  mangaId: mangaId,
-                ),
-              ),
+  }) async {
+    await client
+        .mutate$DeleteMangaMeta(
+          Options$Mutation$DeleteMangaMeta(
+            variables: Variables$Mutation$DeleteMangaMeta(
+              input: Input$DeleteMangaMetaInput(key: key, mangaId: mangaId),
             ),
-          )
-          .getData<Object>((data) => null);
+          ),
+        )
+        .getData<Object>((data) => null);
+    // Same write-through as [patchMangaMeta]; a null value drops the key.
+    await _mirrorMeta(mangaId, key, null);
+  }
+
+  /// Best effort: the server write has already landed, so a catalog hiccup must
+  /// never be reported back as a failed change.
+  Future<void> _mirrorMeta(int mangaId, String key, String? value) async {
+    final mirror = mirrorMangaMeta;
+    if (mirror == null) return;
+    try {
+      await mirror(mangaId, key, value);
+    } catch (e) {
+      recordDiagnostic(
+        '[${DateTime.now().toIso8601String()}] manga-meta-mirror: '
+        'mangaId=$mangaId key=$key error=${e.runtimeType}: $e\n',
+      );
+    }
+  }
 
   /// Fetches the chapter list FROM THE SOURCE (the server re-scrapes the source
   /// site). Returns nothing if the source is down/gone — callers that need to
@@ -253,9 +273,7 @@ class MangaBookRepository {
       .mutate$GetChaptersByMangaId(
         Options$Mutation$GetChaptersByMangaId(
           variables: Variables$Mutation$GetChaptersByMangaId(
-            input: Input$FetchChaptersInput(
-              mangaId: mangaId,
-            ),
+            input: Input$FetchChaptersInput(mangaId: mangaId),
           ),
         ),
       )
@@ -301,5 +319,18 @@ class MangaBookRepository {
 // keepAlive so a captured repository ref can't be disposed out from under an
 // in-flight progress write (pairs with the keepAlive graphQlClient).
 @Riverpod(keepAlive: true)
-MangaBookRepository mangaBookRepository(Ref ref) =>
-    MangaBookRepository(ref.watch(graphQlClientProvider));
+MangaBookRepository mangaBookRepository(Ref ref) {
+  // READ, not watch: the repository instance is held by long-lived closures
+  // (the sync layer, in-flight writes), so it must not be rebuilt whenever the
+  // catalog's availability flips. The DB object itself is stable once offline
+  // is enabled, which it is from the first frame.
+  final db = ref.read(offlineReadDatabaseProvider);
+  return MangaBookRepository(
+    ref.watch(graphQlClientProvider),
+    mirrorMangaMeta: db == null
+        ? null
+        : (mangaId, key, value) => value == null
+              ? db.removeMangaMeta(mangaId, key)
+              : db.mergeMangaMeta(mangaId, key, value),
+  );
+}

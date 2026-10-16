@@ -7,6 +7,7 @@
 import 'dart:async';
 
 import 'package:diacritic/diacritic.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../../constants/db_keys.dart';
@@ -19,6 +20,8 @@ import '../../../../../utils/mixin/state_provider_mixin.dart';
 import '../../../../browse_center/domain/content_rating.dart';
 import '../../../../manga_book/domain/manga/graphql/__generated__/fragment.graphql.dart';
 import '../../../../manga_book/domain/manga/manga_model.dart';
+import '../../../../manga_collection/domain/collection_model.dart';
+import '../../../../manga_collection/presentation/collection_controller.dart';
 import '../../../../tracking/data/tracker_repository.dart';
 import '../../../data/default_category.dart';
 import '../../../domain/category/category_model.dart';
@@ -79,98 +82,27 @@ List<MangaDto> applyLibraryFilterSort(
   Map<int, bool?> trackerFilters = const {},
   Map<int, String> trackerNames = const {},
 }) {
-  final searchQuery = LibrarySearchQuery.parse(query);
-  // Tags match case-insensitively (aligning with the `tag:` search operator),
-  // so lower-case the selections once up front.
-  final filterTagsIncludeLower = filterTagsInclude
-      .map((e) => e.toLowerCase())
-      .toSet();
-  final filterTagsExcludeLower = filterTagsExclude
-      .map((e) => e.toLowerCase())
-      .toSet();
-
-  bool filter(MangaDto manga) {
-    if (mangaIds != null && !mangaIds.contains(manga.id)) return false;
-    if (mangaFilterUnread != null &&
-        (mangaFilterUnread ^ manga.unreadCount.isGreaterThan(0))) {
-      return false;
-    }
-    if (mangaFilterDownloaded != null &&
-        (mangaFilterDownloaded ^ manga.downloadCount.isGreaterThan(0))) {
-      return false;
-    }
-    if (mangaFilterCompleted != null &&
-        (mangaFilterCompleted ^ (manga.status.name == "COMPLETED"))) {
-      return false;
-    }
-    // Started means at least one chapter finished, matching the server's WebUI
-    // and Mihon's `hasStarted = readCount > 0`. Page progress inside a chapter
-    // that is still unread does not count.
-    if (mangaFilterStarted != null &&
-        (mangaFilterStarted ^ manga.readChapterCount.isGreaterThan(0))) {
-      return false;
-    }
-    if (mangaFilterBookmarked != null &&
-        (mangaFilterBookmarked ^ manga.bookmarkCount.isGreaterThan(0))) {
-      return false;
-    }
-    if (mangaFilterOffline != null &&
-        (mangaFilterOffline ^ offlineMangaIds.contains(manga.id))) {
-      return false;
-    }
-    if (mangaFilterLewd != null &&
-        (mangaFilterLewd ^
-            isAdultManga(manga.source?.contentWarning, manga.genre))) {
-      return false;
-    }
-    // Meta-derived fields (rating, tags) plus the DSL-searchable fields, built
-    // once and reused by the rating filter, tags filter, and search below.
-    final fields = manga.filterFields(trackerNames);
-    if (mangaFilterMinRating > 0 &&
-        (fields.rating ?? 0) < mangaFilterMinRating) {
-      return false;
-    }
-    if (filterCategories) {
-      final ids = manga.categories.nodes.map((c) => c.id.toString()).toSet();
-      if (filterCategoriesInclude.isNotEmpty &&
-          ids.intersection(filterCategoriesInclude).isEmpty) {
-        return false;
-      }
-      if (filterCategoriesExclude.isNotEmpty &&
-          ids.intersection(filterCategoriesExclude).isNotEmpty) {
-        return false;
-      }
-    }
-    if (filterTags) {
-      // A manga's tags = source genres + the user's custom tags (lower-cased).
-      final tags = {
-        for (final t in fields.genres) t.toLowerCase(),
-        for (final t in fields.userTags) t.toLowerCase(),
-      };
-      // Include is OR (has any selected tag); exclude wins over include.
-      if (filterTagsIncludeLower.isNotEmpty &&
-          tags.intersection(filterTagsIncludeLower).isEmpty) {
-        return false;
-      }
-      if (filterTagsExcludeLower.isNotEmpty &&
-          tags.intersection(filterTagsExcludeLower).isNotEmpty) {
-        return false;
-      }
-    }
-    // Per-tracker filters: for each tracker id with a non-null preference,
-    // true = manga must have a record for that tracker,
-    // false = manga must NOT have a record for that tracker.
-    for (final entry in trackerFilters.entries) {
-      final pref = entry.value;
-      if (pref == null) continue;
-      final hasTracker = manga.trackRecords.nodes.any(
-        (n) => n.trackerId == entry.key,
-      );
-      if (pref ^ hasTracker) return false;
-    }
-    if (!searchQuery.matches(fields)) return false;
-    return true;
-  }
+  final filter = LibraryEntryFilter(
+    mangaIds: mangaIds,
+    query: query,
+    mangaFilterUnread: mangaFilterUnread,
+    mangaFilterDownloaded: mangaFilterDownloaded,
+    mangaFilterCompleted: mangaFilterCompleted,
+    mangaFilterStarted: mangaFilterStarted,
+    mangaFilterBookmarked: mangaFilterBookmarked,
+    mangaFilterOffline: mangaFilterOffline,
+    offlineMangaIds: offlineMangaIds,
+    mangaFilterLewd: mangaFilterLewd,
+    mangaFilterMinRating: mangaFilterMinRating,
+    filterCategories: filterCategories,
+    filterCategoriesInclude: filterCategoriesInclude,
+    filterCategoriesExclude: filterCategoriesExclude,
+    filterTags: filterTags,
+    filterTagsInclude: filterTagsInclude,
+    filterTagsExclude: filterTagsExclude,
+    trackerFilters: trackerFilters,
+    trackerNames: trackerNames,
+  );
 
   int sortPrimary(MangaDto m1, MangaDto m2) {
     final sortDirToggle = (sortedDirection ? 1 : -1);
@@ -267,8 +199,198 @@ List<MangaDto> applyLibraryFilterSort(
     return byTitle != 0 ? byTitle : m1.id.compareTo(m2.id);
   }
 
-  return input.where(filter).toList()..sort(sort);
+  return input.where(filter.matches).toList()..sort(sort);
 }
+
+/// The library's active filter, packaged so entries that are not [MangaDto]s —
+/// the collections rendered as grid entries beside the manga — are filtered by
+/// exactly the same rule. Collections used to bypass the filter entirely, so a
+/// search that matched nothing in them still showed them.
+class LibraryEntryFilter {
+  LibraryEntryFilter({
+    this.mangaIds,
+    required this.query,
+    required this.mangaFilterUnread,
+    required this.mangaFilterDownloaded,
+    required this.mangaFilterCompleted,
+    required this.mangaFilterStarted,
+    required this.mangaFilterBookmarked,
+    required this.mangaFilterOffline,
+    required this.offlineMangaIds,
+    required this.mangaFilterLewd,
+    required this.mangaFilterMinRating,
+    required this.filterCategories,
+    required this.filterCategoriesInclude,
+    required this.filterCategoriesExclude,
+    required this.filterTags,
+    required this.filterTagsInclude,
+    required this.filterTagsExclude,
+    this.trackerFilters = const {},
+    this.trackerNames = const {},
+  }) : _searchQuery = LibrarySearchQuery.parse(query),
+       // Tags match case-insensitively (aligning with the `tag:` search
+       // operator), so lower-case the selections once up front.
+       _filterTagsIncludeLower = filterTagsInclude
+           .map((e) => e.toLowerCase())
+           .toSet(),
+       _filterTagsExcludeLower = filterTagsExclude
+           .map((e) => e.toLowerCase())
+           .toSet();
+
+  /// Optional allowlist — when non-null only manga whose id is in the set pass
+  /// through (used by [GroupedMangaListWithQueryAndFilter]).
+  final Set<int>? mangaIds;
+  final String? query;
+  final bool? mangaFilterUnread;
+  final bool? mangaFilterDownloaded;
+  final bool? mangaFilterCompleted;
+  final bool? mangaFilterStarted;
+  final bool? mangaFilterBookmarked;
+  final bool? mangaFilterOffline;
+  final Set<int> offlineMangaIds;
+  final bool? mangaFilterLewd;
+  final int mangaFilterMinRating;
+  final bool filterCategories;
+  final Set<String> filterCategoriesInclude;
+  final Set<String> filterCategoriesExclude;
+  final bool filterTags;
+  final Set<String> filterTagsInclude;
+  final Set<String> filterTagsExclude;
+  final Map<int, bool?> trackerFilters;
+  final Map<int, String> trackerNames;
+
+  final LibrarySearchQuery _searchQuery;
+  final Set<String> _filterTagsIncludeLower;
+  final Set<String> _filterTagsExcludeLower;
+
+  /// The parsed search DSL — shared with callers that filter non-manga entries.
+  LibrarySearchQuery get searchQuery => _searchQuery;
+
+  /// The plain-text part of the query, lower-cased: what a name-only match (a
+  /// collection's own title) can be checked against. Empty for a query made
+  /// purely of metatags.
+  String get plainTextQuery =>
+      LibrarySearchQuery.plainText(query).toLowerCase();
+
+  bool matches(MangaDto manga) {
+    if (mangaIds != null && !mangaIds!.contains(manga.id)) return false;
+    if (mangaFilterUnread != null &&
+        (mangaFilterUnread! ^ manga.unreadCount.isGreaterThan(0))) {
+      return false;
+    }
+    if (mangaFilterDownloaded != null &&
+        (mangaFilterDownloaded! ^ manga.downloadCount.isGreaterThan(0))) {
+      return false;
+    }
+    if (mangaFilterCompleted != null &&
+        (mangaFilterCompleted! ^ (manga.status.name == "COMPLETED"))) {
+      return false;
+    }
+    // Started means at least one chapter finished, matching the server's WebUI
+    // and Mihon's `hasStarted = readCount > 0`. Page progress inside a chapter
+    // that is still unread does not count.
+    if (mangaFilterStarted != null &&
+        (mangaFilterStarted! ^ manga.readChapterCount.isGreaterThan(0))) {
+      return false;
+    }
+    if (mangaFilterBookmarked != null &&
+        (mangaFilterBookmarked! ^ manga.bookmarkCount.isGreaterThan(0))) {
+      return false;
+    }
+    if (mangaFilterOffline != null &&
+        (mangaFilterOffline! ^ offlineMangaIds.contains(manga.id))) {
+      return false;
+    }
+    if (mangaFilterLewd != null &&
+        (mangaFilterLewd! ^
+            isAdultManga(manga.source?.contentWarning, manga.genre))) {
+      return false;
+    }
+    // Meta-derived fields (rating, tags) plus the DSL-searchable fields, built
+    // once and reused by the rating filter, tags filter, and search below.
+    final fields = manga.filterFields(trackerNames);
+    if (mangaFilterMinRating > 0 &&
+        (fields.rating ?? 0) < mangaFilterMinRating) {
+      return false;
+    }
+    if (filterCategories) {
+      final ids = manga.categories.nodes.map((c) => c.id.toString()).toSet();
+      if (filterCategoriesInclude.isNotEmpty &&
+          ids.intersection(filterCategoriesInclude).isEmpty) {
+        return false;
+      }
+      if (filterCategoriesExclude.isNotEmpty &&
+          ids.intersection(filterCategoriesExclude).isNotEmpty) {
+        return false;
+      }
+    }
+    if (filterTags) {
+      // A manga's tags = source genres + the user's custom tags (lower-cased).
+      final tags = {
+        for (final t in fields.genres) t.toLowerCase(),
+        for (final t in fields.userTags) t.toLowerCase(),
+      };
+      // Include is OR (has any selected tag); exclude wins over include.
+      if (_filterTagsIncludeLower.isNotEmpty &&
+          tags.intersection(_filterTagsIncludeLower).isEmpty) {
+        return false;
+      }
+      if (_filterTagsExcludeLower.isNotEmpty &&
+          tags.intersection(_filterTagsExcludeLower).isNotEmpty) {
+        return false;
+      }
+    }
+    // Per-tracker filters: for each tracker id with a non-null preference,
+    // true = manga must have a record for that tracker,
+    // false = manga must NOT have a record for that tracker.
+    for (final entry in trackerFilters.entries) {
+      final pref = entry.value;
+      if (pref == null) continue;
+      final hasTracker = manga.trackRecords.nodes.any(
+        (n) => n.trackerId == entry.key,
+      );
+      if (pref ^ hasTracker) return false;
+    }
+    if (!_searchQuery.matches(fields)) return false;
+    return true;
+  }
+}
+
+/// Resolves the library's active filter from the provider graph.
+///
+/// Shared by the manga-list providers and the collection filter so the two can
+/// never disagree about what the library is currently showing.
+LibraryEntryFilter watchLibraryEntryFilter(
+  Ref ref, {
+  Set<int>? mangaIds,
+}) => LibraryEntryFilter(
+  mangaIds: mangaIds,
+  query: ref.watch(libraryQueryDebouncedProvider),
+  mangaFilterUnread: ref.watch(libraryMangaFilterUnreadProvider),
+  mangaFilterDownloaded: ref.watch(libraryMangaFilterDownloadedProvider),
+  mangaFilterCompleted: ref.watch(libraryMangaFilterCompletedProvider),
+  mangaFilterStarted: ref.watch(libraryMangaFilterStartedProvider),
+  mangaFilterBookmarked: ref.watch(libraryMangaFilterBookmarkedProvider),
+  mangaFilterOffline: ref.watch(libraryMangaFilterOfflineProvider),
+  offlineMangaIds:
+      ref.watch(offlineDeviceMangaIdsProvider).value ?? const <int>{},
+  mangaFilterLewd: ref.watch(libraryMangaFilterLewdProvider),
+  mangaFilterMinRating: ref.watch(libraryMangaFilterMinRatingProvider) ?? 0,
+  filterCategories: ref.watch(libraryFilterCategoriesProvider).ifNull(false),
+  filterCategoriesInclude:
+      (ref.watch(libraryFilterCategoriesIncludeProvider) ?? const <String>[])
+          .toSet(),
+  filterCategoriesExclude:
+      (ref.watch(libraryFilterCategoriesExcludeProvider) ?? const <String>[])
+          .toSet(),
+  filterTags: ref.watch(libraryFilterTagsProvider).ifNull(false),
+  filterTagsInclude:
+      (ref.watch(libraryFilterTagsIncludeProvider) ?? const <String>[]).toSet(),
+  filterTagsExclude:
+      (ref.watch(libraryFilterTagsExcludeProvider) ?? const <String>[]).toSet(),
+  trackerFilters: ref.watch(libraryTrackerFiltersProvider),
+  trackerNames: ref.watch(libraryTrackerNamesProvider),
+);
 
 /// Whether the library's copy of a series differs from [fresh], a fetch of it
 /// made since (both use MangaDto). Reloading the library costs ~1.5 MB and
@@ -286,7 +408,9 @@ bool libraryEntryOutdated(MangaDto? listed, MangaDto? fresh) {
 Future<List<MangaDto>?> categoryMangaList(Ref ref, int categoryId) async {
   final defaultIdFuture = ref.watch(defaultCategoryIdProvider.future);
   final allFuture = ref.watch(libraryMangaListProvider.future);
-  final defaultId = await defaultIdFuture;
+  // An unresolvable default id must not blank the shelf: without one, series
+  // that carry no category of their own simply don't land in the default tab.
+  final defaultId = await defaultIdFuture.catchError((Object _) => null);
   final all = await allFuture;
   if (all == null) return null;
   return all.where((m) {
@@ -794,4 +918,61 @@ class GroupedMangaListWithQueryAndFilter
       loading: (e) => e,
     );
   }
+}
+
+/// Family key for [filteredSectionCollectionsProvider]: a library section is
+/// either a category (by id) or a grouped tab (by tab id).
+typedef SectionCollectionsKey = ({int sectionId, bool byCategory});
+
+/// The collections that belong in a library section's grid, after the active
+/// search/filter — so a collection behaves like the manga beside it instead of
+/// a row that ignores the search.
+///
+/// A collection stands in for the series it holds (the grid hides those), so it
+/// survives while at least one of its members would have, or while the query's
+/// plain words name the collection (or a member) itself.
+///
+/// Hand-written rather than `@riverpod`, so adding it needed no code-generation
+/// run (the same reason `offlineCacheEverythingProvider` is hand-written).
+final filteredSectionCollectionsProvider =
+    Provider.family<List<Collection>, SectionCollectionsKey>((ref, key) {
+      final all = ref.watch(collectionsProvider);
+      final collections = key.byCategory
+          ? collectionsForCategory(all, key.sectionId)
+          : uncategorizedCollections(all);
+      if (collections.isEmpty) return const [];
+      final filter = watchLibraryEntryFilter(ref);
+      // Member DTOs come from the whole library, not the section's list: they
+      // are what the filter is evaluated against.
+      final members = <int, MangaDto>{
+        for (final m
+            in ref.watch(libraryMangaListProvider).value ?? const <MangaDto>[])
+          m.id: m,
+      };
+      return [
+        for (final collection in collections)
+          if (collectionMatchesLibraryFilter(collection, filter, members))
+            collection,
+      ];
+    });
+
+/// Whether [collection] survives [filter] — see
+/// [filteredSectionCollectionsProvider].
+bool collectionMatchesLibraryFilter(
+  Collection collection,
+  LibraryEntryFilter filter,
+  Map<int, MangaDto> memberDtos,
+) {
+  for (final member in collection.members) {
+    final dto = memberDtos[member.mangaId];
+    if (dto != null && filter.matches(dto)) return true;
+  }
+  // A bare-word search can also name the collection itself, or a member whose
+  // DTO is no longer in the library list (a stale member snapshot).
+  final plain = filter.plainTextQuery;
+  if (plain.isEmpty) return false;
+  if (collection.name.toLowerCase().contains(plain)) return true;
+  return collection.members.any(
+    (m) => m.displayName.toLowerCase().contains(plain),
+  );
 }

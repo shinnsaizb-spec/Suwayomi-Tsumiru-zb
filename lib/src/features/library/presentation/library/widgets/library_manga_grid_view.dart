@@ -21,11 +21,19 @@ import '../../../../../widgets/manga_cover/list/manga_cover_list_tile.dart';
 import '../../../../../widgets/manga_cover/providers/manga_cover_providers.dart';
 import '../../../../manga_book/domain/manga/manga_model.dart';
 import '../../../../manga_book/presentation/manga_details/controller/manga_details_controller.dart';
+import '../../../../manga_collection/domain/collection_model.dart';
+import '../../../../manga_collection/presentation/collection_details_screen.dart';
+import '../../../../manga_collection/presentation/collection_tiles.dart';
 import '../../../../settings/presentation/appearance/widgets/grid_cover_width_slider/grid_cover_width_slider.dart';
 import '../controller/library_controller.dart';
+import '../controller/library_entry_sort.dart';
 
 /// The scrollable that renders one library tab's manga, shared by the
 /// per-category list and the grouped tabs.
+///
+/// Collections are rendered as extra entries in the same grid (in front of the
+/// manga) rather than in a separate shelf, so a collection occupies exactly the
+/// slot a manga would.
 class LibraryMangaGridView extends StatelessWidget {
   const LibraryMangaGridView({
     super.key,
@@ -33,6 +41,8 @@ class LibraryMangaGridView extends StatelessWidget {
     required this.onOpen,
     this.onLongPress,
     this.selection = const {},
+    this.collections = const [],
+    this.onOpenCollection,
   });
 
   final List<MangaDto> items;
@@ -42,6 +52,13 @@ class LibraryMangaGridView extends StatelessWidget {
   /// Ids of the currently multi-selected manga (empty when not selecting).
   final Set<int> selection;
 
+  /// Collections belonging to this view (its category's, or the uncategorised
+  /// ones). Empty renders exactly the previous manga-only grid.
+  final List<Collection> collections;
+
+  /// Defaults to pushing the collection's details screen.
+  final void Function(Collection collection)? onOpenCollection;
+
   @override
   Widget build(BuildContext context) => CustomScrollView(
         slivers: [
@@ -50,6 +67,8 @@ class LibraryMangaGridView extends StatelessWidget {
             onOpen: onOpen,
             onLongPress: onLongPress,
             selection: selection,
+            collections: collections,
+            onOpenCollection: onOpenCollection,
           ),
         ],
       );
@@ -68,6 +87,8 @@ class LibraryMangaSliver extends ConsumerWidget {
     required this.onOpen,
     this.onLongPress,
     this.selection = const {},
+    this.collections = const [],
+    this.onOpenCollection,
   });
 
   final List<MangaDto> items;
@@ -76,6 +97,10 @@ class LibraryMangaSliver extends ConsumerWidget {
 
   /// Ids of the currently multi-selected manga (empty when not selecting).
   final Set<int> selection;
+
+  /// Collections rendered as leading entries of this grid.
+  final List<Collection> collections;
+  final void Function(Collection collection)? onOpenCollection;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,21 +162,116 @@ class LibraryMangaSliver extends ConsumerWidget {
             maxCrossAxisExtent: gridWidth,
           );
 
+    // Collections sort with the manga — same axis, same direction — so a
+    // collection lands among the series instead of always leading the grid.
+    // With no collections the manga list is used exactly as the provider
+    // produced it.
+    //
+    // The merge runs inside the sliver's build, so a failure there would take
+    // the whole shelf down with it. Fall back to collections-first instead and
+    // leave a trace for the debug log, which is the layout that predates
+    // sorting collections with manga.
+    // A manga that sits in one of this view's collections is represented by
+    // that collection, so its own entry is hidden — otherwise the same series
+    // would appear twice (once inside the collection, once on its own).
+    final collectedIds = <int>{
+      for (final collection in collections)
+        for (final member in collection.members) member.mangaId,
+    };
+    final visibleItems = collectedIds.isEmpty
+        ? items
+        : items.where((m) => !collectedIds.contains(m.id)).toList();
+
+    // Not final: the catch below assigns it a second time when the merge throws.
+    List<Object> entries;
+    if (collections.isEmpty) {
+      entries = items;
+    } else {
+      try {
+        entries = sortLibraryEntries(
+          manga: visibleItems,
+          collections: collections,
+          // Hide the members from the sort, but not from the collections'
+          // keys: their unread sums and dates still describe the collection.
+          memberStatsFrom: {for (final m in items) m.id: m},
+          axis:
+              ref.watch(libraryMangaSortProvider) ?? DBKeys.mangaSort.initial,
+          descending: ref
+              .watch(libraryMangaSortDirectionProvider)
+              .ifNull(true),
+          seed:
+              ref.watch(librarySortRandomSeedProvider) ??
+              DBKeys.librarySortRandomSeed.initial as int,
+        );
+      } catch (e, st) {
+        debugPrint('library-entries: collection merge failed, using '
+            'collections-first: $e\n$st');
+        entries = [...collections, ...visibleItems];
+      }
+    }
+    final totalCount = entries.length;
+    Object itemAt(int index) => entries[index];
+    void openCollection(Collection collection) {
+      // While multi-selecting, taps belong to the selection.
+      if (selecting) return;
+      final open = onOpenCollection;
+      if (open != null) {
+        open(collection);
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CollectionDetailsScreen(collectionId: collection.id),
+        ),
+      );
+    }
+
     // Preserves element state across re-orders for slivers that recalculate
     // layout offsets. Built once per build() (items.length lookups worth of
     // work) instead of doing an O(items.length) indexWhere scan inside the
     // callback itself — the callback is invoked once per child needing
     // relocation, so a linear scan there turns a single reorder into an
     // O(n^2) pass over the whole visible+cached range.
-    final idToIndex = {for (var i = 0; i < items.length; i++) items[i].id: i};
-    int? findChildIndex(Key key) => idToIndex[(key as ValueKey<int>).value];
+    final idToIndex = <int, int>{};
+    final collectionKeyToIndex = <String, int>{};
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      if (entry is Collection) {
+        collectionKeyToIndex['col:${entry.id}'] = i;
+      } else if (entry is MangaDto) {
+        idToIndex[entry.id] = i;
+      }
+    }
+    int? findChildIndex(Key key) {
+      if (key is ValueKey<int>) return idToIndex[key.value];
+      if (key is ValueKey<String>) return collectionKeyToIndex[key.value];
+      return null;
+    }
 
     // Re-keys masonry on item order changes to prevent crashes from nulled child offsets.
-    Key masonryOrderKey() => ValueKey(Object.hashAll(items.map((m) => m.id)));
+    Key masonryOrderKey() => ValueKey(
+          Object.hashAll([
+            for (final entry in entries)
+              entry is Collection
+                  ? 'col:${entry.id}'
+                  : 'manga:${(entry as MangaDto).id}',
+          ]),
+        );
 
     Widget grid({bool titleBelow = false, bool showTitle = true}) {
       Widget tile(BuildContext context, int index) {
-        final manga = items[index];
+        final item = itemAt(index);
+        if (item is Collection) {
+          return CollectionGridTile(
+            key: ValueKey<String>('col:${item.id}'),
+            collection: item,
+            onTap: () => openCollection(item),
+            showTitle: showTitle,
+            titleBelow: titleBelow,
+            gridStyle: gridStyle,
+          );
+        }
+        final manga = item as MangaDto;
         return MangaCoverGridTile(
           key: ValueKey<int>(manga.id),
           manga: manga,
@@ -174,14 +294,14 @@ class LibraryMangaSliver extends ConsumerWidget {
             gridDelegate: uniformDelegate(titleBelow: titleBelow),
             delegate: SliverChildBuilderDelegate(
               tile,
-              childCount: items.length,
+              childCount: totalCount,
               findChildIndexCallback: findChildIndex,
             ),
           ),
         // Rows are as tall as their tallest cover and tiles bottom-align inside them.
         LibraryGridStyle.nonUniform => SliverAlignedGrid(
             gridDelegate: freeformDelegate(),
-            itemCount: items.length,
+            itemCount: totalCount,
             itemBuilder: tile,
             mainAxisSpacing: 2.0,
             crossAxisSpacing: 2.0,
@@ -192,7 +312,7 @@ class LibraryMangaSliver extends ConsumerWidget {
             gridDelegate: freeformDelegate(),
             delegate: SliverChildBuilderDelegate(
               tile,
-              childCount: items.length,
+              childCount: totalCount,
             ),
             mainAxisSpacing: 2.0,
             crossAxisSpacing: 2.0,
@@ -219,12 +339,24 @@ class LibraryMangaSliver extends ConsumerWidget {
     // taller — as does the descriptive row, whose contents vary regardless.
     Widget listSliver({
       required double extent,
-      required NullableIndexedWidgetBuilder builder,
+      required Widget Function(BuildContext, MangaDto) mangaBuilder,
       bool fixedExtent = true,
+      bool descriptive = false,
     }) {
       final delegate = SliverChildBuilderDelegate(
-        builder,
-        childCount: items.length,
+        (context, index) {
+          final item = itemAt(index);
+          if (item is Collection) {
+            return scaled(CollectionListTile(
+              key: ValueKey<String>('col:${item.id}'),
+              collection: item,
+              onTap: () => openCollection(item),
+              descriptive: descriptive,
+            ));
+          }
+          return mangaBuilder(context, item as MangaDto);
+        },
+        childCount: totalCount,
         findChildIndexCallback: findChildIndex,
       );
       return fixedExtent && limitTitleLines
@@ -235,14 +367,13 @@ class LibraryMangaSliver extends ConsumerWidget {
     return switch (displayMode) {
       DisplayMode.list || null => listSliver(
           extent: 96 * rowScale,
-          builder: (context, index) => scaled(MangaCoverListTile(
-            key: ValueKey<int>(items[index].id),
-            manga: items[index],
-            selected: selection.contains(items[index].id),
-            onPressed: () => onOpen(items[index]),
-            onLongPress:
-                onLongPress == null ? null : () => onLongPress!(items[index]),
-            onContinueReading: continueReadingFor(items[index]),
+          mangaBuilder: (context, manga) => scaled(MangaCoverListTile(
+            key: ValueKey<int>(manga.id),
+            manga: manga,
+            selected: selection.contains(manga.id),
+            onPressed: () => onOpen(manga),
+            onLongPress: onLongPress == null ? null : () => onLongPress!(manga),
+            onContinueReading: continueReadingFor(manga),
             showCountBadges: true,
             scale: listScale,
             limitTitleLines: limitTitleLines,
@@ -251,14 +382,14 @@ class LibraryMangaSliver extends ConsumerWidget {
       DisplayMode.descriptiveList => listSliver(
           extent: 176 * rowScale,
           fixedExtent: false,
-          builder: (context, index) => scaled(MangaCoverDescriptiveListTile(
-            key: ValueKey<int>(items[index].id),
-            manga: items[index],
-            selected: selection.contains(items[index].id),
-            onPressed: () => onOpen(items[index]),
-            onLongPress:
-                onLongPress == null ? null : () => onLongPress!(items[index]),
-            onContinueReading: continueReadingFor(items[index]),
+          descriptive: true,
+          mangaBuilder: (context, manga) => scaled(MangaCoverDescriptiveListTile(
+            key: ValueKey<int>(manga.id),
+            manga: manga,
+            selected: selection.contains(manga.id),
+            onPressed: () => onOpen(manga),
+            onLongPress: onLongPress == null ? null : () => onLongPress!(manga),
+            onContinueReading: continueReadingFor(manga),
             showBadges: true,
             outlineOnCovers: outlineOnCovers,
             scale: listScale,

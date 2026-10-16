@@ -500,7 +500,14 @@ class ServerImage extends HookConsumerWidget {
       fadeInDuration: fadeDuration,
       memCacheWidth: imageBuilder == null ? cacheWidth : null,
       memCacheHeight: imageBuilder == null ? cacheHeight : null,
-      imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
+      // Web: an <img> element, not an XHR byte fetch. The XHR path requires
+      // Access-Control-Allow-Origin on EVERY image origin — the server's own
+      // `api/*` CORS rule covers its thumbnails, but manga covers/pages are
+      // usually served from the source's own CDN, which rarely sends CORS
+      // headers. The browser <img> tag has no such requirement, and the
+      // ui_login token already rides the URL on web (the server accepts it as
+      // a query param), so images load exactly like they do on native.
+      imageRenderMethodForWeb: ImageRenderMethodForWeb.HtmlImage,
       progressIndicatorBuilder: finalProgressIndicatorBuilder,
       imageBuilder: imageBuilderCapped,
       errorWidget: errorWidget,
@@ -636,13 +643,13 @@ ImageProvider serverPageImageProvider(
   if (request.localPath != null) {
     return offlineImageProvider(request.localPath!);
   }
-  return CachedNetworkImageProvider(
-    request.fetchUrl,
-    cacheKey: request.cacheKey,
-    cacheManager: isCoverImagePath(imageUrl)
-        ? ref.read(coverCacheManagerProvider)
-        : ref.read(serverPageCacheManagerProvider),
-    headers: request.headers,
-    imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
-  );
+    return CachedNetworkImageProvider(
+      request.fetchUrl,
+      cacheKey: request.cacheKey,
+      cacheManager: isCoverImagePath(imageUrl)
+          ? ref.read(coverCacheManagerProvider)
+          : ref.read(serverPageCacheManagerProvider),
+      headers: request.headers,
+      imageRenderMethodForWeb: ImageRenderMethodForWeb.HtmlImage,
+    );
 }

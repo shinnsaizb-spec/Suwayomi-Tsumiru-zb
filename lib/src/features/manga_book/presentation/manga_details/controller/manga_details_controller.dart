@@ -12,6 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../../constants/db_keys.dart';
 import '../../../../../constants/enum.dart';
+import '../../../../../features/offline/data/offline_cache_everything.dart';
 import '../../../../../features/offline/data/offline_download_providers.dart';
 import '../../../../../features/offline/data/offline_read_fallback.dart';
 import '../../../../../features/offline/data/offline_repository.dart';
@@ -57,10 +58,19 @@ class MangaWithId extends _$MangaWithId {
         return r;
       },
       db: ref.watch(offlineReadDatabaseProvider),
-      offlineEnabled: ref.watch(offlineActiveProvider),
+      // The catalog's own availability, not `offlineActive`: that one watches
+      // the server's instance id, which needs the network — so with the server
+      // down it returned false and disabled the offline path entirely, leaving
+      // the page to sit out the connection timeout before falling back. The
+      // library list gates on the same condition for the same reason.
+      offlineEnabled: ref.watch(offlineReadDatabaseProvider) != null,
       offlineFirst:
           ref.watch(viewOfflineNowProvider) ||
-          ref.watch(serverUnreachableProvider),
+          ref.watch(serverUnreachableProvider) ||
+          // Full cache is local-first here too, or opening a series with the
+          // server down hangs on the network timeout instead of showing the
+          // mirrored entry.
+          (ref.watch(offlineCacheEverythingProvider) ?? false),
       mangaId: mangaId,
     );
     // Keep this cached like its sibling MangaChapterList so revisiting details
@@ -125,10 +135,19 @@ class MangaChapterList extends _$MangaChapterList {
         return stored;
       },
       db: ref.watch(offlineReadDatabaseProvider),
-      offlineEnabled: ref.watch(offlineActiveProvider),
+      // The catalog's own availability, not `offlineActive`: that one watches
+      // the server's instance id, which needs the network — so with the server
+      // down it returned false and disabled the offline path entirely, leaving
+      // the page to sit out the connection timeout before falling back. The
+      // library list gates on the same condition for the same reason.
+      offlineEnabled: ref.watch(offlineReadDatabaseProvider) != null,
       offlineFirst:
           ref.watch(viewOfflineNowProvider) ||
-          ref.watch(serverUnreachableProvider),
+          ref.watch(serverUnreachableProvider) ||
+          // Full cache is local-first here too, or opening a series with the
+          // server down hangs on the network timeout instead of showing the
+          // mirrored entry.
+          (ref.watch(offlineCacheEverythingProvider) ?? false),
       mangaId: mangaId,
     );
     if (!current()) return null;

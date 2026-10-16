@@ -95,6 +95,11 @@ MangaDto offlineMangaToDto(
     title: m.title,
     thumbnailUrl: m.thumbnailUrl,
     bookmarkCount: m.bookmarkCount,
+    // Long-form metadata, mirrored from the server so the offline details page
+    // shows the same synopsis and credits.
+    description: m.description,
+    artist: m.artist,
+    author: m.author,
     chapters: Fragment$MangaDto$chapters(totalCount: effectiveTotal),
     downloadCount: m.downloadCount,
     // The next unread chapter that's downloaded on this device, if any. Drives

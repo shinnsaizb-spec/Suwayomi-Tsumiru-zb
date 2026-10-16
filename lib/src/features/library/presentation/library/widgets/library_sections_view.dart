@@ -14,6 +14,7 @@ import '../../../../../routes/router_config.dart';
 import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../widgets/shell/update_banner_state.dart';
 import '../../../../manga_book/data/updates/updates_repository.dart';
+import '../../../../manga_collection/domain/collection_model.dart';
 import '../../../../offline/data/server_reachability.dart';
 import '../controller/library_controller.dart';
 import '../controller/library_grouping.dart';
@@ -112,13 +113,17 @@ class LibrarySectionsView extends HookConsumerWidget {
       child: CustomScrollView(
         controller: scrollController,
         slivers: [
-          for (final section in sections)
+          for (var i = 0; i < sections.length; i++)
             _Section(
-              key: ValueKey(section.id),
-              headerKey: headerKeys.value[section.id]!,
-              section: section,
+              key: ValueKey(sections[i].id),
+              headerKey: headerKeys.value[sections[i].id]!,
+              section: sections[i],
               byCategory: byCategory,
               showCount: showCounts,
+              // Category sections show their own collections; the grouped
+              // (by source/status) sections have no category to file them
+              // under, so the uncategorised ones ride in the first section.
+              showCollections: byCategory || i == 0,
             ),
         ],
       ),
@@ -135,11 +140,13 @@ class _Section extends ConsumerWidget {
     required this.section,
     required this.byCategory,
     required this.showCount,
+    this.showCollections = false,
   });
 
   final LibrarySection section;
   final bool byCategory;
   final bool showCount;
+  final bool showCollections;
 
   /// Attached to the rendered header so [LibrarySectionsView]'s scroll
   /// listener can read its on-screen position.
@@ -156,8 +163,19 @@ class _Section extends ConsumerWidget {
           );
     final items = listAsync.value ?? const [];
 
+    // Collections are grid entries in this same section, not a separate shelf —
+    // and they are filtered by the same search/filter as the manga around them.
+    final collections = !showCollections
+        ? const <Collection>[]
+        : ref.watch(
+            filteredSectionCollectionsProvider((
+              sectionId: section.id,
+              byCategory: byCategory,
+            )),
+          );
+
     // A lone header over no rows just looks broken.
-    if (items.isEmpty) {
+    if (items.isEmpty && collections.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
@@ -177,6 +195,7 @@ class _Section extends ConsumerWidget {
         ),
         LibraryMangaSliver(
           items: items,
+          collections: collections,
           onOpen: (manga) => MangaRoute(
             mangaId: manga.id,
             categoryId: byCategory ? section.id : null,

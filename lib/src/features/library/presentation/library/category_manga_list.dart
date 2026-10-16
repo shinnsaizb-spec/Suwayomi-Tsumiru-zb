@@ -31,6 +31,7 @@ import '../../../manga_book/domain/chapter/chapter_model.dart';
 import '../../../manga_book/domain/manga/manga_model.dart';
 import '../../../manga_book/presentation/manga_details/controller/scanlator_dedup.dart';
 import '../../../manga_book/presentation/manga_details/widgets/edit_manga_category_dialog.dart';
+import '../../../manga_collection/presentation/add_to_collection_sheet.dart';
 import '../../../migration/domain/migration_models.dart';
 import '../../../offline/data/offline_chapter_catchup.dart';
 import '../../../offline/data/offline_database.dart';
@@ -78,6 +79,15 @@ class CategoryMangaList extends HookConsumerWidget {
       categoryId: categoryId,
     );
     final mangaList = ref.watch(provider);
+    // Collections assigned to this category ride in this category's grid, so
+    // they sit among the manga instead of in a separate shelf — and they are
+    // filtered by the same search/filter as the manga around them.
+    final collections = ref.watch(
+      filteredSectionCollectionsProvider((
+        sectionId: categoryId,
+        byCategory: true,
+      )),
+    );
     refresh() => ref.invalidate(categoryMangaListProvider(categoryId));
     useEffect(() {
       // Effect bodies run during build; invalidating a provider there throws.
@@ -188,9 +198,14 @@ class CategoryMangaList extends HookConsumerWidget {
       // live here too, not only on the library-level gates.
       loadingWidget: const OfflineViewLoading(),
       offlineEscapeHatch: true,
+      // Same reason as the library screen: the shelf is served locally first and
+      // the server check lands behind it, which must not flash a spinner.
+      skipLoadingOnReload: true,
       context,
       (data) {
-        if (data.isBlank) {
+        final items = data ?? const <MangaDto>[];
+        // A category that only holds collections is not empty.
+        if (items.isEmpty && collections.isEmpty) {
           return Emoticons(
             title: context.l10n.noCategoryMangaFound,
             button: TextButton(
@@ -199,10 +214,10 @@ class CategoryMangaList extends HookConsumerWidget {
             ),
           );
         }
-        final items = data!;
         final Widget grid = LibraryMangaGridView(
           items: items,
           selection: selection.value,
+          collections: collections,
           onOpen: open,
           onLongPress: (manga) => toggle(manga.id),
         );
@@ -516,6 +531,18 @@ class CategoryMangaList extends HookConsumerWidget {
                         $extra: MigrationBulkConfigData(mangaIds: ids),
                       ).push(context);
                     },
+                    onAddToCollection: () async {
+                      final selected = items
+                          .where((m) => selection.value.contains(m.id))
+                          .toList();
+                      if (selected.isEmpty) return;
+                      selection.value = const {};
+                      await showAddToCollectionSheet(
+                        context,
+                        selected,
+                        initialCategoryId: categoryId,
+                      );
+                    },
                   ),
                 ),
             ],
@@ -528,7 +555,8 @@ class CategoryMangaList extends HookConsumerWidget {
 }
 
 /// Bottom action bar shown while library manga are multi-selected: mark
-/// read/unread, edit categories (bulk), keep offline, and download to server.
+/// read/unread, edit categories (bulk), add to a collection, keep offline, and
+/// download to server.
 class _SelectionBar extends StatelessWidget {
   const _SelectionBar({
     required this.count,
@@ -539,6 +567,7 @@ class _SelectionBar extends StatelessWidget {
     required this.onKeepOffline,
     required this.onDownloadToServer,
     required this.onEditCategories,
+    required this.onAddToCollection,
     required this.onMigrate,
   });
 
@@ -550,6 +579,7 @@ class _SelectionBar extends StatelessWidget {
   final VoidCallback? onKeepOffline;
   final ValueChanged<DownloadPreset>? onDownloadToServer;
   final VoidCallback onEditCategories;
+  final VoidCallback onAddToCollection;
   final VoidCallback onMigrate;
 
   PopupMenuItem<VoidCallback> _moreItem(
@@ -580,6 +610,11 @@ class _SelectionBar extends StatelessWidget {
           tooltip: 'Edit categories',
           icon: const Icon(Icons.label_outline_rounded),
           onPressed: onEditCategories,
+        ),
+        IconButton(
+          tooltip: 'Add to collection',
+          icon: const Icon(Icons.playlist_add_rounded),
+          onPressed: onAddToCollection,
         ),
         IconButton(
           tooltip: 'Mark read',

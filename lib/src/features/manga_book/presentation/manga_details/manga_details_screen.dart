@@ -343,21 +343,6 @@ class MangaDetailsScreen extends HookConsumerWidget {
                               ),
                               icon: const Icon(Icons.more_vert_rounded),
                               itemBuilder: (context) => [
-                                if (ref
-                                        .watch(showRecommendationsProvider)
-                                        .ifNull(true) &&
-                                    ref
-                                        .watch(recommendsInOverflowProvider)
-                                        .ifNull(false))
-                                  PopupMenuItem(
-                                    onTap: () => RecommendsRoute(
-                                      mangaId: mangaId,
-                                      mangaTitle: data?.title,
-                                    ).push(context),
-                                    child: Text(
-                                      context.l10n.seeRecommendations,
-                                    ),
-                                  ),
                                 PopupMenuItem(
                                   onTap: () => Future.microtask(() {
                                     if (!context.mounted) return null;

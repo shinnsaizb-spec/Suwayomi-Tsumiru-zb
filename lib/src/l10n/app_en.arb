@@ -4017,5 +4017,99 @@
   "webInterfaceCustomUpdates": "Custom interfaces are installed manually in the server's \"webUI\" directory.",
   "updatedByYourServer": "Updated by your server",
   "serverInstalledNewTsumiru": "A new version of Tsumiru is installed on your server",
-  "reloadWebBuild": "Reload"
+  "reloadWebBuild": "Reload",
+  "offlineCacheSection": "Offline cache",
+  "offlineCacheEverything": "Cache the whole library",
+  "offlineCacheEverythingDescription": "Keeps manga info, chapter lists and covers on this device, opens the library from that copy, and checks the server in the background. Chapters you open in a library series are then kept on this device for offline re-reading; series you only browse are not downloaded.",
+  "connectionRetryInterval": "Connection retry interval",
+  "connectionRetryIntervalDescription": "Seconds between automatic connection attempts. Leave empty to only retry when you tap the connection icon in the library.",
+  "off": "off",
+  "lockToPortrait": "Lock to portrait",
+  "lockToPortraitDescription": "Stop the app rotating to landscape on phones",
+  "saveToDevice": "Save to device",
+  "saveFailedRetry": "Save failed — retry",
+  "removeFromDevice": "Remove from device",
+  "collectionName": "Collection name",
+  "collectionNameHint": "e.g. Weekend reads",
+  "displayName": "Display name",
+  "nameInCollection": "Name in collection",
+  "newCollection": "New collection",
+  "editCollection": "Edit collection",
+  "collection": "Collection",
+  "allCategories": "All categories",
+  "cover": "Cover",
+  "addMangaFromLibrary": "Add manga from your library",
+  "libraryIsEmpty": "Your library is empty",
+  "rename": "Rename",
+  "shownAs": "Shown as: {name}",
+  "@shownAs": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "orCoverImageUrl": "Or cover image URL (optional)",
+  "pickAtLeastOneManga": "Pick at least one manga",
+  "pleaseEnterName": "Please enter a name",
+  "clearSelection": "Clear selection",
+  "selectAll": "Select all",
+  "removeFromCollection": "Remove from collection",
+  "addNMangaTo": "Add {count} manga to",
+  "@addNMangaTo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createNewCollection": "Create new collection",
+  "createNewCollectionSubtitle": "Bundle the selected manga under a new name",
+  "addToExistingCollection": "Add to existing collection",
+  "noCollectionsYet": "No collections yet",
+  "pickTheCover": "Pick the cover",
+  "create": "Create",
+  "addToCollection": "Add to collection",
+  "createdCollection": "Created {name}",
+  "@createdCollection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "alreadyInCollection": "Already in that collection",
+  "addedMangaToCollection": "Added {count} manga to {name}",
+  "@addedMangaToCollection": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "collections": "Collections",
+  "deleteCollectionQuestion": "Delete collection?",
+  "deleteCollectionConfirm": "{name} will be removed. The manga themselves are not deleted.",
+  "@deleteCollectionConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionNotFound": "Collection not found",
+  "noMangaInCollection": "No manga in this collection",
+  "notInLibrary": "Not in library",
+  "nSelected": "{count} selected",
+  "@nSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noCollectionsHint": "Tap + to group several manga into one collection."
 }

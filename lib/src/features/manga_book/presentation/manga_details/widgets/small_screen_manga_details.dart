@@ -22,7 +22,6 @@ import 'chapter_list_mode_toggle.dart';
 import 'chapter_list_tile.dart';
 import 'manga_description.dart';
 import 'missing_chapters_tile.dart';
-import 'recommends_row.dart';
 
 class SmallScreenMangaDetails extends ConsumerWidget {
   const SmallScreenMangaDetails({
@@ -67,10 +66,6 @@ class SmallScreenMangaDetails extends ConsumerWidget {
               ),
             ),
           ),
-          if (manga.title.isNotBlank)
-            SliverToBoxAdapter(
-              child: RecommendsRow(mangaId: mangaId, mangaTitle: manga.title),
-            ),
           SliverToBoxAdapter(
             child: ListTile(
               title: Text(context.l10n.noOfChapters(chapterCount)),
