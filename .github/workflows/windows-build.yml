@@ -1,0 +1,76 @@
+# Manual Windows-only build.
+#
+# Why this exists: `release-fork.yml` only attaches its artifacts to a GitHub
+# Release when a v*.*.* tag is pushed. A manual `workflow_dispatch` run of that
+# workflow builds all six platforms and then throws the output away — there is
+# no upload-artifact step there. This is the small, single-purpose escape
+# hatch: build Windows x64 on demand and keep the zip as a downloadable
+# Actions artifact.
+#
+# Use it when you just want a runnable desktop build of the current branch and
+# don't want to cut a release. Runs in ~8-12 minutes on windows-2022, which
+# already ships VS 2022 (MSVC v143), ATL and the Windows SDK.
+name: Windows build (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  pkg_name: tsumiru
+
+jobs:
+  windows:
+    name: Build Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .fvmrc
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      # The generated sources are gitignored, so every job regenerates them.
+      - run: flutter pub get
+      - run: flutter gen-l10n
+      - run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build
+        run: flutter build windows --release
+
+      - name: Bundle the MSVC runtime and verify SQLite
+        shell: pwsh
+        run: |
+          # Without the MSVC runtime DLLs the window opens but never paints
+          # (a blank white screen) on machines without the VC++ Redistributable.
+          $redist = vswhere -latest -find 'VC\Redist\MSVC\*\x64\*\*.dll'
+          Copy-Item $redist build\windows\x64\runner\Release\ -Force
+          # Guard: a missing sqlite3.dll is the error-126 DB-open crash.
+          $sqlite = Get-ChildItem build\windows\x64\runner\Release\ -Filter *.dll |
+            Where-Object { $_.Name -match 'sqlite3' }
+          if (-not $sqlite) {
+            Get-ChildItem build\windows\x64\runner\Release\ | Select-Object Name
+            throw "sqlite3 native library missing from the Windows bundle"
+          }
+          Write-Host "Bundled SQLite: $($sqlite.Name)"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "dist\${env:pkg_name}-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tsumiru-windows-x64
+          path: dist/*.zip
+          retention-days: 14
