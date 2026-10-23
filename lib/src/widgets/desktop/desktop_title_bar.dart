@@ -38,8 +38,9 @@ class DesktopTitleBar extends StatelessWidget {
                 // Brand name (not localized). Kept as a literal so the bar never
                 // depends on Localizations being in scope at the app-builder
                 // level, where AppLocalizations.of() isn't reliably available.
+                // Keep this in sync with `appTitle` in the ARB files.
                 child: Text(
-                  'Tsumiru',
+                  'zb-manga',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.7),
                   ),
