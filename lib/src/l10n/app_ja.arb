@@ -1091,7 +1091,7 @@
   "@withUnreadChapter": {
     "description": "Setting option Text for Skip updating entries to toggle With unread chapter(s)"
   },
-  "appTitle": "Sorayomi",
+  "appTitle": "zb-manga",
   "@appTitle": {
     "description": "Name of the app (Sorayomi in native script)"
   },

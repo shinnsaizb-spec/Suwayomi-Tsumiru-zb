@@ -349,6 +349,12 @@ enum DBKeys {
   // Off by default: it mirrors far more than the download-based cache does.
   offlineCacheEverything(false),
 
+  // Extensions (plugins) blocked on THIS device. Every source owned by a
+  // blocked package disappears from the browse list, global search and bulk
+  // migration. Client-side only: the server has no per-extension permission,
+  // so this is a local filter, not an enforced rule.
+  blockedExtensionPackages(<String>[]),
+
   // How often the library's connection probe retries while the server is
   // unreachable, in seconds. 0 (the default) means it does not retry on its
   // own: the user taps the connection icon to try again.

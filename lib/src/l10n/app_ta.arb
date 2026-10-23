@@ -3,7 +3,7 @@
   "@appLanguage": {
     "description": "Popup title and Button text to change App Language"
   },
-  "appTitle": "சோரயோமி",
+  "appTitle": "zb-manga",
   "@appTitle": {
     "description": "Name of the app (Sorayomi in native script)"
   },

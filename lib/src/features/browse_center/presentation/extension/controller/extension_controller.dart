@@ -7,10 +7,12 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../../constants/db_keys.dart';
+import '../../../../../constants/extension_visibility.dart';
 import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../utils/mixin/shared_preferences_client_mixin.dart';
 import '../../../../../utils/mixin/state_provider_mixin.dart';
 import '../../../../settings/presentation/browse/widgets/show_nsfw_switch/show_nsfw_switch.dart';
+import '../../../data/blocked_extensions.dart';
 import '../../../data/extension_repository/extension_repository.dart';
 import '../../../domain/content_rating.dart';
 import '../../../domain/extension/extension_model.dart';
@@ -19,8 +21,9 @@ part 'extension_controller.g.dart';
 
 @riverpod
 Future<List<Extension>?> extension(Ref ref) {
-  final result =
-      ref.watch(extensionRepositoryProvider).getExtensionListStream();
+  final result = ref
+      .watch(extensionRepositoryProvider)
+      .getExtensionListStream();
   ref.keepAlive();
   return result;
 }
@@ -31,7 +34,15 @@ AsyncValue<Map<String, List<Extension>>> extensionMap(Ref ref) {
   final extensionListData = ref.watch(extensionProvider);
   final extensionList = [...?extensionListData.value];
   final showNsfw = ref.watch(showNSFWProvider).ifNull(true);
+  // Blocked packages are hidden from every bucket (installed, updates, by
+  // language) so a blocked plugin cannot be browsed, updated or uninstalled
+  // from here. The Sources filter screen still lists them to unblock.
+  final blocked = ref.watch(blockedExtensionPackagesProvider);
+  // Hardcoded allowlist for non-admin accounts; null = no restriction.
+  final allowed = ref.watch(visibleExtensionPackagesProvider);
   for (final e in extensionList) {
+    if (blocked.contains(e.pkgName)) continue;
+    if (allowed != null && !allowed.contains(e.pkgName)) continue;
     if (!showNsfw && isNsfwFromWarning(e.contentWarning)) continue;
     if (e.isInstalled.ifNull()) {
       if (e.hasUpdate.ifNull()) {
@@ -59,8 +70,7 @@ AsyncValue<Map<String, List<Extension>>> extensionMap(Ref ref) {
   // order (install order is unhelpful); this matches Suwayomi-WebUI, which
   // sorts each group by name.
   for (final list in extensionMap.values) {
-    list.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
   return extensionListData.copyWithData((p0) => extensionMap);
 }

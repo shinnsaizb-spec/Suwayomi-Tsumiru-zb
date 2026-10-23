@@ -11,7 +11,7 @@
   "@appTheme": {
     "description": "Popup title and Button text to change App Theme"
   },
-  "appTitle": "Sorayomi",
+  "appTitle": "zb-manga",
   "@appTitle": {
     "description": "Name of the app (Sorayomi in native script)"
   },

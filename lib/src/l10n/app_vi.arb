@@ -75,7 +75,7 @@
   "@allScanlators": {
     "description": "Text for all Scanlators in manga description screen chapter filter"
   },
-  "appTitle": "Sorayomi",
+  "appTitle": "zb-manga",
   "@appTitle": {
     "description": "Name of the app (Tachidesk Sorayomi in native script)"
   },

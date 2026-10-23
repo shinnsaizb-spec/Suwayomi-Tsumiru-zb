@@ -183,7 +183,7 @@
   "@addCategory": {
     "description": "Popup title and Button text to add new category in Edit Category Screen"
   },
-  "appTitle": "Tachidesk Sorayomi",
+  "appTitle": "zb-manga",
   "@appTitle": {
     "description": "Name of the app (Tachidesk Sorayomi in native script)"
   },

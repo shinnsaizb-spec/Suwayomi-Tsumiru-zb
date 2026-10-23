@@ -361,7 +361,7 @@
   "@authType": {
     "description": "Popup title and Button text to change App Authentication"
   },
-  "appTitle": "Tsumiru",
+  "appTitle": "zb-manga",
   "@appTitle": {
     "description": "Name of the app (Sorayomi in native script)"
   },
@@ -3809,5 +3809,7 @@
   "noMangaInCollection": "該合集裡還沒有漫畫",
   "notInLibrary": "不在書架中",
   "nSelected": "已選 {count} 項",
-  "noCollectionsHint": "點擊 + 把幾部漫畫歸到一個合集裡。"
+  "noCollectionsHint": "點擊 + 把幾部漫畫歸到一個合集裡。",
+  "blockedExtensions": "封鎖的擴充套件",
+  "blockedExtensionsDescription": "封鎖後，該擴充套件及其包含的所有來源都不會出現在瀏覽和搜尋裡。僅在本機生效。"
 }

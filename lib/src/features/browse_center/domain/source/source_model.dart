@@ -39,27 +39,31 @@ extension SourceExtensions on SourceDto {
 
   bool get isHidden =>
       meta.any((m) => m.key == kSourceHiddenMetaKey && m.value == 'true');
+
+  /// The extension (plugin) package this source ships in. Blocking a package
+  /// hides every source it owns — see [blockedExtensionPackagesProvider].
+  String get extensionPkgName => $extension.pkgName;
 }
 
 extension SourceMangaTypeExtension on SourceType {
   IconData get icon => switch (this) {
-        SourceType.LATEST => Icons.new_releases_outlined,
-        SourceType.POPULAR => Icons.favorite_border_rounded,
-        SourceType.SEARCH => Icons.filter_list_outlined,
-        SourceType.$unknown => throw UnimplementedError(),
-      };
+    SourceType.LATEST => Icons.new_releases_outlined,
+    SourceType.POPULAR => Icons.favorite_border_rounded,
+    SourceType.SEARCH => Icons.filter_list_outlined,
+    SourceType.$unknown => throw UnimplementedError(),
+  };
 
   IconData get selectedIcon => switch (this) {
-        SourceType.LATEST => Icons.new_releases_rounded,
-        SourceType.POPULAR => Icons.favorite_rounded,
-        SourceType.SEARCH => Icons.filter_list_rounded,
-        SourceType.$unknown => throw UnimplementedError(),
-      };
+    SourceType.LATEST => Icons.new_releases_rounded,
+    SourceType.POPULAR => Icons.favorite_rounded,
+    SourceType.SEARCH => Icons.filter_list_rounded,
+    SourceType.$unknown => throw UnimplementedError(),
+  };
 
   String toLocale(BuildContext context) => switch (this) {
-        SourceType.LATEST => context.l10n.sourceTypeLatest,
-        SourceType.POPULAR => context.l10n.sourceTypePopular,
-        SourceType.SEARCH => context.l10n.sourceTypeFilter,
-        SourceType.$unknown => throw UnimplementedError(),
-      };
+    SourceType.LATEST => context.l10n.sourceTypeLatest,
+    SourceType.POPULAR => context.l10n.sourceTypePopular,
+    SourceType.SEARCH => context.l10n.sourceTypeFilter,
+    SourceType.$unknown => throw UnimplementedError(),
+  };
 }

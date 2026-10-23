@@ -1305,7 +1305,7 @@
   "animatePageTransitions": "Animate page transitions",
   "appLanguage": "App Language",
   "appTheme": "App Theme Mode",
-  "appTitle": "Tsumiru",
+  "appTitle": "zb-manga",
   "appearance": "Appearance",
   "authType": "Authentication Type",
   "authTypeBasic": "Basic Auth",
@@ -4111,5 +4111,7 @@
       }
     }
   },
-  "noCollectionsHint": "Tap + to group several manga into one collection."
+  "noCollectionsHint": "Tap + to group several manga into one collection.",
+  "blockedExtensions": "Blocked extensions",
+  "blockedExtensionsDescription": "Hide these plugins, and every source they contain, from browsing and search. Applies to this device only."
 }

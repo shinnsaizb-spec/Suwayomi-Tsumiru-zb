@@ -7,10 +7,12 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../../constants/db_keys.dart';
+import '../../../../../constants/extension_visibility.dart';
 import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../utils/mixin/shared_preferences_client_mixin.dart';
 import '../../../../../utils/mixin/state_provider_mixin.dart';
 import '../../../../settings/presentation/browse/widgets/show_nsfw_switch/show_nsfw_switch.dart';
+import '../../../data/blocked_extensions.dart';
 import '../../../data/source_repository/source_repository.dart';
 import '../../../domain/content_rating.dart';
 import '../../../domain/source/source_model.dart';
@@ -29,23 +31,41 @@ Future<List<SourceDto>?> sourceList(Ref ref) =>
 @riverpod
 AsyncValue<List<SourceDto>?> visibleSourceList(Ref ref) {
   final showNsfw = ref.watch(showNSFWProvider).ifNull(true);
-  return ref.watch(sourceListProvider).copyWithData(
+  return ref
+      .watch(sourceListProvider)
+      .copyWithData(
         (list) => list == null || showNsfw
             ? list
             : [...list.where((e) => !isNsfwFromWarning(e.contentWarning))],
       );
 }
 
-/// [visibleSourceList] with user-hidden sources removed. Every browse-facing
-/// list (grouped map, pinned section, global search, migration) derives from
-/// this, so hiding a source drops it everywhere. The Sources filter screen
-/// deliberately reads [visibleSourceList] instead, so hidden sources stay
-/// visible there to be un-hidden.
+/// [visibleSourceList] with user-hidden sources **and** every source belonging
+/// to a blocked extension (plugin) removed. Every browse-facing list (grouped
+/// map, pinned section, global search, migration) derives from this, so hiding
+/// a source — or blocking its whole package — drops it everywhere. The Sources
+/// filter screen deliberately reads [visibleSourceList] / the raw list instead,
+/// so hidden sources and blocked packages stay visible there to be re-enabled.
 @riverpod
-AsyncValue<List<SourceDto>?> browsableSourceList(Ref ref) =>
-    ref.watch(visibleSourceListProvider).copyWithData(
-          (list) => list == null ? list : [...list.where((e) => !e.isHidden)],
-        );
+AsyncValue<List<SourceDto>?> browsableSourceList(Ref ref) {
+  final blocked = ref.watch(blockedExtensionPackagesProvider);
+  // Hardcoded allowlist for non-admin accounts; null = no restriction.
+  final allowed = ref.watch(visibleExtensionPackagesProvider);
+  return ref
+      .watch(visibleSourceListProvider)
+      .copyWithData(
+        (list) => list == null
+            ? list
+            : [
+                ...list.where(
+                  (e) =>
+                      !e.isHidden &&
+                      !blocked.contains(e.extensionPkgName) &&
+                      (allowed == null || allowed.contains(e.extensionPkgName)),
+                ),
+              ],
+      );
+}
 
 int _byName(SourceDto a, SourceDto b) =>
     a.name.toLowerCase().compareTo(b.name.toLowerCase());
@@ -83,8 +103,8 @@ Map<String, List<SourceDto>> groupSourcesByLanguage(
 /// Pinned sources, surfaced as their own top section regardless of the active
 /// language filter.
 @riverpod
-List<SourceDto> pinnedSources(Ref ref) => pinnedSourcesFrom(
-    ref.watch(browsableSourceListProvider).value ?? const []);
+List<SourceDto> pinnedSources(Ref ref) =>
+    pinnedSourcesFrom(ref.watch(browsableSourceListProvider).value ?? const []);
 
 @riverpod
 AsyncValue<Map<String, List<SourceDto>>> sourceMap(Ref ref) {
@@ -111,9 +131,10 @@ Map<String, List<SourceDto>> groupAllSourcesByLanguage(
   }
   // Komikku within-language order: shown sources before hidden, then by name.
   for (final list in sourceMap.values) {
-    list.sort((a, b) => a.isHidden == b.isHidden
-        ? _byName(a, b)
-        : (a.isHidden ? 1 : -1));
+    list.sort(
+      (a, b) =>
+          a.isHidden == b.isHidden ? _byName(a, b) : (a.isHidden ? 1 : -1),
+    );
   }
   return sourceMap;
 }
@@ -136,18 +157,22 @@ class SourceFilterLangMap extends _$SourceFilterLangMap {
     final enabledLanguages = ref.watch(sourceLanguageFilterProvider);
     sourceMap.remove("lastUsed");
     sourceMap.remove("localsourcelang");
-    return Map.fromIterable(
-      [...sourceMap.keys],
-      value: (element) => (enabledLanguages?.contains(element)).ifNull(),
-    );
+    return Map.fromIterable([
+      ...sourceMap.keys,
+    ], value: (element) => (enabledLanguages?.contains(element)).ifNull());
   }
 
   void toggleLang(String langCode, bool value) {
     if (!value) {
-      ref.read(sourceLanguageFilterProvider.notifier).updateWithPreviousState(
-          (enabledLanguages) => [...?enabledLanguages]..remove(langCode));
+      ref
+          .read(sourceLanguageFilterProvider.notifier)
+          .updateWithPreviousState(
+            (enabledLanguages) => [...?enabledLanguages]..remove(langCode),
+          );
     } else {
-      ref.read(sourceLanguageFilterProvider.notifier).updateWithPreviousState(
+      ref
+          .read(sourceLanguageFilterProvider.notifier)
+          .updateWithPreviousState(
             (enabledLanguages) => {...?enabledLanguages, langCode}.toList(),
           );
     }
@@ -189,9 +214,7 @@ List<SourceDto>? sourceQuery(Ref ref, {String? query}) {
     ..remove('lastUsed');
   if (query.isNotBlank) {
     return sourceMap.values
-        .expand((list) => list.where(
-              (element) => element.name.query(query),
-            ))
+        .expand((list) => list.where((element) => element.name.query(query)))
         .toList();
   }
   return sourceMap.values.expand((list) => list).toList();
