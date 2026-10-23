@@ -18,9 +18,6 @@ on:
 permissions:
   contents: read
 
-env:
-  pkg_name: tsumiru
-
 jobs:
   windows:
     name: Build Windows x64
@@ -63,14 +60,10 @@ jobs:
           }
           Write-Host "Bundled SQLite: $($sqlite.Name)"
 
-      - name: Package
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "dist\${env:pkg_name}-windows-x64.zip"
-
+      # Upload the bundle folder as-is: GitHub already wraps artifacts in a zip,
+      # so zipping here too would make users unzip twice.
       - uses: actions/upload-artifact@v7
         with:
-          name: tsumiru-windows-x64
-          path: dist/*.zip
+          name: zb-manga-windows-x64
+          path: build/windows/x64/runner/Release/
           retention-days: 14

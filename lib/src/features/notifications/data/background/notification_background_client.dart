@@ -402,13 +402,13 @@ mutation NotifEnqueue($ids: [Int!]!) {
         0;
   }
 
-  /// The latest Tsumiru release tag + its page, from the public GitHub API (no
-  /// auth, no server). Null on any failure.
+  /// The latest zb-manga (fork) release tag + its page, from the public GitHub
+  /// API (no auth, no server). Null on any failure.
   Future<({String version, String url})?> fetchLatestRelease() async {
     try {
       final res = await _http.get(
         Uri.parse(
-          'https://api.github.com/repos/Suwayomi/Suwayomi-Tsumiru/releases/latest',
+          'https://api.github.com/repos/shinnsaizb-spec/Suwayomi-Tsumiru-zb/releases/latest',
         ),
         headers: const {'Accept': 'application/vnd.github+json'},
       );

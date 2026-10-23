@@ -3,8 +3,9 @@ cmake_minimum_required(VERSION 3.14)
 project(tsumiru LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
-set(BINARY_NAME "tsumiru")
+# the on-disk name of your application. Branded as zb-manga (the Dart package
+# name stays `tsumiru` — renaming that breaks every `package:tsumiru/...`).
+set(BINARY_NAME "zb-manga")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
