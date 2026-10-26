@@ -90,6 +90,13 @@ class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
     // layout reported. Positions at zero are skipped, so a tab the user has
     // never scrolled is left alone.
     final targets = <ScrollPosition>{..._controller.positions, ..._positions};
+    // TEMPORARY DIAGNOSTIC — remove once back-to-top is confirmed working.
+    debugPrint(
+      '[backToTop] own=${_controller.positions.length} '
+      'reported=${_positions.length} '
+      'ownPixels=${_controller.positions.map((p) => p.pixels.round()).toList()} '
+      'reportedPixels=${_positions.map((p) => p.pixels.round()).toList()}',
+    );
     for (final position in targets) {
       if (!position.hasPixels || position.pixels <= 0) continue;
       position.animateTo(
