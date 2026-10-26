@@ -1,4 +1,5 @@
 // lib/src/utils/theme/app_theme_builder.dart
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -206,8 +207,7 @@ ThemeData buildAppTheme({
   );
 }
 
-/// Delegates the actual transition to whatever the platform would have used,
-/// and changes only how long it runs.
+/// Runs the slide-from-right transition at the length the user picked.
 ///
 /// `MaterialRouteTransitionMixin.transitionDuration` reads the builder's
 /// duration, so this is what makes the in-app speed setting work — including
@@ -228,10 +228,11 @@ class _TimedPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final platform = Theme.of(context).platform;
-    final base =
-        const PageTransitionsTheme().builders[platform] ??
-        const ZoomPageTransitionsBuilder();
+    // Slide in from the right on every platform instead of the stock
+    // zoom/fade-through. The series page is meant to arrive from the edge, and
+    // using one builder everywhere keeps the motion identical on phones and
+    // desktop.
+    const base = CupertinoPageTransitionsBuilder();
     return base.buildTransitions(
       route,
       context,
