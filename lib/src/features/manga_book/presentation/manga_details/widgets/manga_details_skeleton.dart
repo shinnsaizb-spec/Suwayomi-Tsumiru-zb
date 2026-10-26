@@ -12,6 +12,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../utils/theme/brand.dart';
 import '../../../../../widgets/read_fab_hero.dart';
+import '../../../../offline/data/offline_repository.dart';
+import '../../../../offline/presentation/series_offline_button.dart';
 import '../../../../../widgets/manga_cover/list/manga_cover_descriptive_list_tile.dart';
 import '../../../../../widgets/manga_cover/manga_cover_hero.dart';
 import '../../../../../widgets/server_image.dart';
@@ -91,13 +93,19 @@ class MangaDetailsSkeleton extends ConsumerWidget {
               icon: const Icon(Icons.swap_horiz_rounded),
             ),
           ],
-          PopupMenuButton<void>(
-            icon: const Icon(Icons.open_in_new_rounded),
-            itemBuilder: (context) => const [],
+          // Download presets, then the chapter organizer, then the overflow —
+          // the same three the loaded page shows on a phone.
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.cloud_download_outlined),
           ),
           IconButton(
             onPressed: () {},
+            icon: const Icon(Icons.filter_list_rounded),
+          ),
+          PopupMenuButton<void>(
             icon: const Icon(Icons.more_vert_rounded),
+            itemBuilder: (context) => const [],
           ),
         ],
       ),
@@ -216,6 +224,8 @@ class MangaDetailsSkeleton extends ConsumerWidget {
                     onPressed: () {},
                   ),
                 ),
+                if (ref.watch(offlineEnabledProvider))
+                  Expanded(child: SeriesOfflineButton(mangaId: mangaId)),
                 Expanded(
                   child: MangaActionButton(
                     icon: const Icon(Icons.public_rounded),
