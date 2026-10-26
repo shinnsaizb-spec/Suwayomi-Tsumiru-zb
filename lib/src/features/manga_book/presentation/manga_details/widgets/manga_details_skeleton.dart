@@ -13,6 +13,7 @@ import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../utils/theme/brand.dart';
 import '../../../../../widgets/read_fab_hero.dart';
 import '../../../../offline/data/offline_repository.dart';
+import '../../../../offline/data/server_reachability.dart';
 import '../../../../offline/presentation/series_offline_button.dart';
 import '../../../../../widgets/manga_cover/list/manga_cover_descriptive_list_tile.dart';
 import '../../../../../widgets/manga_cover/manga_cover_hero.dart';
@@ -59,7 +60,12 @@ class MangaDetailsSkeleton extends ConsumerWidget {
         );
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      // Same expression the loaded page uses (`selectedChapters` is empty while
+      // loading). When it is false the Scaffold consumes the status bar inset
+      // for the app bar and the body starts below it — taking the opposite
+      // branch here is what put the frame's contents up under the bar until the
+      // data arrived.
+      extendBodyBehindAppBar: !ref.watch(serverUnreachableProvider),
       // Same bar the loaded page shows at rest: transparent, no title, the same
       // scrim, and the same actions in the same order. The actions are inert
       // here, but drawn with live callbacks so they do not change colour when
