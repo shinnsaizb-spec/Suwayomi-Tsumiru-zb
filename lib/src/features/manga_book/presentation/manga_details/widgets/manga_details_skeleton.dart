@@ -10,9 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../../../utils/extensions/custom_extensions.dart';
+import '../../../../../utils/theme/brand.dart';
+import '../../../../../widgets/read_fab_hero.dart';
 import '../../../../../widgets/manga_cover/list/manga_cover_descriptive_list_tile.dart';
 import '../../../../../widgets/manga_cover/manga_cover_hero.dart';
 import '../../../../../widgets/server_image.dart';
+import 'manga_action_button.dart';
 import 'manga_rating_bar.dart';
 import '../../../../library/presentation/library/controller/library_manga_list.dart';
 import '../../../domain/manga/manga_model.dart';
@@ -55,8 +58,11 @@ class MangaDetailsSkeleton extends ConsumerWidget {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      // Same bar the loaded page shows at rest: transparent, no title, with the
-      // scrim that keeps the back arrow legible over the blurred cover.
+      // Same bar the loaded page shows at rest: transparent, no title, the same
+      // scrim, and the same actions in the same order. The actions are inert
+      // here, but drawn with live callbacks so they do not change colour when
+      // the data arrives — a bar that grows three buttons mid-load is exactly
+      // the flicker this frame exists to avoid.
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -69,6 +75,40 @@ class MangaDetailsSkeleton extends ConsumerWidget {
               colors: [Color(0x73000000), Colors.transparent],
             ),
           ),
+        ),
+        actions: [
+          if (context.isTablet) ...[
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.category_rounded),
+            ),
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.swap_horiz_rounded),
+            ),
+          ],
+          PopupMenuButton<void>(
+            icon: const Icon(Icons.open_in_new_rounded),
+            itemBuilder: (context) => const [],
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.more_vert_rounded),
+          ),
+        ],
+      ),
+      // Present from the first frame as well: the shelf's back-to-top button
+      // morphs into this one, and a Hero needs a destination on the arriving
+      // route.
+      floatingActionButton: ReadFabHero(
+        child: BrandFab(
+          label: Text(context.l10n.start),
+          icon: const Icon(Icons.play_arrow_rounded),
+          onPressed: () {},
         ),
       ),
       body: ListView(
@@ -156,28 +196,33 @@ class MangaDetailsSkeleton extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // Action row: four equal columns, matching the loaded page's buttons.
+          // Action row: the real buttons in their default state, so only the
+          // icons' "active" highlight changes once the data lands.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Row(
               children: [
-                for (var i = 0; i < 4; i++)
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: placeholder,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        bar(height: 8, width: 40),
-                      ],
-                    ),
+                Expanded(
+                  child: MangaActionButton(
+                    icon: const Icon(Icons.favorite_border_rounded),
+                    label: context.l10n.addToLibrary,
+                    onPressed: () {},
                   ),
+                ),
+                Expanded(
+                  child: MangaActionButton(
+                    icon: const Icon(Icons.sync_rounded),
+                    label: context.l10n.tracking,
+                    onPressed: () {},
+                  ),
+                ),
+                Expanded(
+                  child: MangaActionButton(
+                    icon: const Icon(Icons.public_rounded),
+                    label: context.l10n.webView,
+                    onPressed: () {},
+                  ),
+                ),
               ],
             ),
           ),

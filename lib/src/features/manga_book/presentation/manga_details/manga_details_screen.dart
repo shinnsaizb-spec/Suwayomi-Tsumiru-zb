@@ -398,8 +398,10 @@ class MangaDetailsScreen extends HookConsumerWidget {
             width: kDrawerWidth,
             child: MangaChapterOrganizer(mangaId: mangaId),
           ),
-          floatingActionButton:
-              firstUnreadChapter != null && selectedChapters.value.isEmpty
+          // Always present while nothing is selected, even when there is no
+          // chapter to open yet: the shelf's back-to-top button morphs into this
+          // one, and a Hero that comes and goes makes the transition jump.
+          floatingActionButton: selectedChapters.value.isEmpty
               ? ReadFabHero(
                   child: BrandFab(
                     label: Text(
@@ -408,13 +410,16 @@ class MangaDetailsScreen extends HookConsumerWidget {
                           : context.l10n.start,
                     ),
                     icon: const Icon(Icons.play_arrow_rounded),
-                    onPressed: () {
-                      ReaderRoute(
-                        mangaId: firstUnreadChapter.mangaId,
-                        chapterId: firstUnreadChapter.id,
-                        showReaderLayoutAnimation: true,
-                      ).push(context);
-                    },
+                    onPressed: firstUnreadChapter == null
+                        ? null
+                        : () {
+                            final chapter = firstUnreadChapter;
+                            ReaderRoute(
+                              mangaId: chapter.mangaId,
+                              chapterId: chapter.id,
+                              showReaderLayoutAnimation: true,
+                            ).push(context);
+                          },
                   ),
                 )
               : null,
