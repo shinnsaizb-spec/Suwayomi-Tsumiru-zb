@@ -18,6 +18,7 @@ import '../../../../utils/misc/toast/toast.dart';
 import '../../../../utils/motion/reduce_motion.dart';
 import '../../../../utils/theme/brand.dart';
 import '../../../../widgets/emoticons.dart';
+import '../../../../widgets/read_fab_hero.dart';
 import '../../../library/presentation/category/controller/edit_category_controller.dart';
 import '../../../library/presentation/library/controller/library_controller.dart';
 import '../../../library/presentation/library/controller/library_manga_list.dart';
@@ -399,20 +400,22 @@ class MangaDetailsScreen extends HookConsumerWidget {
           ),
           floatingActionButton:
               firstUnreadChapter != null && selectedChapters.value.isEmpty
-              ? BrandFab(
-                  label: Text(
-                    data?.lastReadChapter?.hasReadingProgress == true
-                        ? context.l10n.resume
-                        : context.l10n.start,
+              ? ReadFabHero(
+                  child: BrandFab(
+                    label: Text(
+                      data?.lastReadChapter?.hasReadingProgress == true
+                          ? context.l10n.resume
+                          : context.l10n.start,
+                    ),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    onPressed: () {
+                      ReaderRoute(
+                        mangaId: firstUnreadChapter.mangaId,
+                        chapterId: firstUnreadChapter.id,
+                        showReaderLayoutAnimation: true,
+                      ).push(context);
+                    },
                   ),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  onPressed: () {
-                    ReaderRoute(
-                      mangaId: firstUnreadChapter.mangaId,
-                      chapterId: firstUnreadChapter.id,
-                      showReaderLayoutAnimation: true,
-                    ).push(context);
-                  },
                 )
               : null,
           // Banner above the content, not over it: the hero owns the whole top

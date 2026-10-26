@@ -42,6 +42,7 @@ import 'controller/library_manga_list.dart';
 import 'widgets/library_connection_button.dart';
 import 'widgets/library_manga_grid_view.dart';
 import 'widgets/library_manga_organizer.dart';
+import 'widgets/library_scroll_top_fab.dart';
 import 'widgets/library_sections_view.dart';
 
 /// Wraps a library Scaffold body so the offline server-mismatch banner sits
@@ -58,7 +59,7 @@ Widget _libraryBody(WidgetRef ref, Widget body, {bool grouped = false}) =>
           ),
         ),
         const OfflineServerMismatchBanner(),
-        Expanded(child: body),
+        Expanded(child: LibraryScrollTopFab(child: body)),
       ],
     );
 
