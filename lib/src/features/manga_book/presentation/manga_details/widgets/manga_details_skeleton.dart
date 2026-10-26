@@ -13,6 +13,7 @@ import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../widgets/manga_cover/list/manga_cover_descriptive_list_tile.dart';
 import '../../../../../widgets/manga_cover/manga_cover_hero.dart';
 import '../../../../../widgets/server_image.dart';
+import 'manga_rating_bar.dart';
 import '../../../../library/presentation/library/controller/library_manga_list.dart';
 import '../../../domain/manga/manga_model.dart';
 
@@ -54,10 +55,21 @@ class MangaDetailsSkeleton extends ConsumerWidget {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      // Same bar the loaded page shows at rest: transparent, no title, with the
+      // scrim that keeps the back arrow legible over the blurred cover.
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x73000000), Colors.transparent],
+            ),
+          ),
+        ),
       ),
       body: ListView(
         padding: EdgeInsets.zero,
@@ -169,6 +181,12 @@ class MangaDetailsSkeleton extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          // The rating row is fixed furniture, and it reads its own provider
+          // rather than the details query — so it is drawn for real here: the
+          // label and five empty stars are on screen immediately, and the stars
+          // light up as soon as the stored rating resolves.
+          MangaRatingBar(mangaId: mangaId),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
