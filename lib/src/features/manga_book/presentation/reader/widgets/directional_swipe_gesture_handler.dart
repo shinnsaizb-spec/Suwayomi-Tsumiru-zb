@@ -75,7 +75,7 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
     // vertical mode, don't register them at all here, leaving ZoomView's scale
     // recognizer the sole single-finger owner. Horizontal/paged modes keep them.
     if (scrollDirection == Axis.vertical) {
-      return _wrapWithTapAndLongPress(child, ref);
+      return _wrapWithTapAndLongPress(child);
     }
     // Horizontal continuous mode has the same conflict while the reader is
     // zoomed in: a single-finger drag then means "pan around the zoomed
@@ -100,20 +100,17 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
   /// Tap + long-press wrapper shared by every mode. These don't fight
   /// multi-touch, so they're always safe to layer over the reader content.
   ///
-  /// Taps go through [_TapGate] rather than `GestureDetector.onTap`: in the
-  /// vertical (webtoon / continuous) modes the scroll is driven by ZoomView's
-  /// own recognizer, so a drag that only moves the finger a little never makes
-  /// the tap recognizer lose the arena — scrolling then toggled the chrome.
-  /// The gate only reports a tap when the finger barely moved.
-  Widget _wrapWithTapAndLongPress(Widget child, WidgetRef ref) {
-    return _TapGate(
-      onTap: onTap,
+  /// A hand-rolled Listener-based gate was tried here and made taps disappear
+  /// in the vertical modes — the scroll view claims the pointer, and raw
+  /// `Listener` bookkeeping drifted out of sync with the real gesture. The
+  /// misfire this was meant to solve is handled where it belongs: the tap
+  /// handler ignores taps for a short window after a user scroll (see
+  /// [kReaderTapAfterScrollWindow]).
+  Widget _wrapWithTapAndLongPress(Widget child) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
       onLongPressStart: onLongPressStart,
-      // Not every vertical mode reports scroll through a Scrollable, so the
-      // gate also marks a drag itself — the tap handler then stays quiet for
-      // [kReaderTapAfterScrollWindow] afterwards.
-      onDragDetected: () =>
-          ref.read(readerLastScrollAtProvider.notifier).state = DateTime.now(),
+      onTap: onTap,
       child: child,
     );
   }
@@ -149,7 +146,7 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
               },
             ),
       },
-      child: _wrapWithTapAndLongPress(child, ref),
+      child: _wrapWithTapAndLongPress(child),
     );
   }
 
@@ -200,7 +197,7 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
               },
             ),
       },
-      child: _wrapWithTapAndLongPress(child, ref),
+      child: _wrapWithTapAndLongPress(child),
     );
   }
 
@@ -428,102 +425,5 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
     } else {
       _navigateToNextChapterWithFallback(context);
     }
-  }
-}
-
-/// Finger travel still allowed for a press to count as a tap, in logical
-/// pixels. Deliberately well under Flutter's 18px `kTouchSlop`, because the
-/// webtoon scroll needs a little more travel than that before ZoomView starts
-/// moving — the gap was what turned scroll starts into taps.
-const double _kTapMoveSlop = 12;
-
-/// Reports a tap only when the finger barely moved and no long press fired.
-///
-/// `GestureDetector.onTap` is not enough in the vertical modes: the scrolling
-/// there is driven by ZoomView's own recognizer rather than a `Scrollable`, so
-/// the tap recognizer can still win the arena on a small drag and toggle the
-/// chrome while the reader is scrolling. A movement gate does not care which
-/// recognizer wins — it only looks at how far the finger actually travelled.
-class _TapGate extends StatefulWidget {
-  const _TapGate({
-    required this.onTap,
-    required this.onLongPressStart,
-    required this.child,
-    this.onDragDetected,
-  });
-
-  final VoidCallback onTap;
-  final void Function(LongPressStartDetails)? onLongPressStart;
-
-  /// Called once per gesture, the moment the finger travels past the tap slop.
-  final VoidCallback? onDragDetected;
-  final Widget child;
-
-  @override
-  State<_TapGate> createState() => _TapGateState();
-}
-
-class _TapGateState extends State<_TapGate> {
-  Offset? _downPosition;
-  bool _moved = false;
-  bool _longPressFired = false;
-
-  /// The pointer this gesture belongs to. Tracked by id rather than by a count:
-  /// a count that ever drifts (a lost up, a cancel that only resets) leaves the
-  /// gate believing a finger is still down and refuses every later tap, which
-  /// looks exactly like "taps stopped working".
-  int? _pointer;
-
-  void _reset() {
-    _downPosition = null;
-    _moved = false;
-    _longPressFired = false;
-    _pointer = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) {
-        if (_pointer == null) {
-          _pointer = event.pointer;
-          _downPosition = event.position;
-          _moved = false;
-          _longPressFired = false;
-          return;
-        }
-        // A second finger means pinch-zoom, never a tap — but it must not
-        // abandon the gesture: the first finger's up still resets the gate.
-        if (event.pointer != _pointer) _moved = true;
-      },
-      onPointerMove: (event) {
-        final down = _downPosition;
-        if (down == null || _moved || event.pointer != _pointer) return;
-        if ((event.position - down).distance > _kTapMoveSlop) {
-          _moved = true;
-          widget.onDragDetected?.call();
-        }
-      },
-      onPointerUp: (event) {
-        if (event.pointer != _pointer) return;
-        final isTap = _downPosition != null && !_moved && !_longPressFired;
-        _reset();
-        if (isTap) widget.onTap();
-      },
-      onPointerCancel: (event) {
-        if (event.pointer == _pointer) _reset();
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onLongPressStart: widget.onLongPressStart == null
-            ? null
-            : (details) {
-                _longPressFired = true;
-                widget.onLongPressStart!(details);
-              },
-        child: widget.child,
-      ),
-    );
   }
 }

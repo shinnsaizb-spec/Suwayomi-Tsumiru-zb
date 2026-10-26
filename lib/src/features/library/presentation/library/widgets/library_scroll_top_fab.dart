@@ -34,20 +34,22 @@ class LibraryScrollTopFab extends StatefulWidget {
 
 class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
   bool _visible = false;
-  ScrollPosition? _position;
-  ScrollableState? _outerScrollable;
 
-  /// The nearest ancestor scrollable of the one that reported the scroll.
+  /// Every scroll position the shelf has reported, plus the outer position of
+  /// the surrounding `NestedScrollView` when there is one.
   ///
-  /// The shelf scrolls inside a `NestedScrollView`, so notifications come from
-  /// the *inner* list; animating its position alone leaves the collapsing
-  /// header where it is and the page barely moves. The outer scrollable is the
-  /// one that drives the whole page back up.
-  static ScrollableState? _ancestorScrollable(BuildContext? context) {
-    ScrollableState? found;
+  /// A single position is not enough: the shelf nests an inner list inside a
+  /// `NestedScrollView` (and one per category tab), so animating just the one
+  /// the notification carried left the collapsing header in place, and on a
+  /// second tab it animated a position that belonged to the first.
+  final Set<ScrollPosition> _positions = <ScrollPosition>{};
+
+  static ScrollPosition? _ancestorPosition(BuildContext? context) {
+    ScrollPosition? found;
     context?.visitAncestorElements((element) {
       if (element is StatefulElement && element.state is ScrollableState) {
-        found = element.state as ScrollableState;
+        final state = element.state as ScrollableState;
+        if (state.position.hasPixels) found = state.position;
         return false;
       }
       return true;
@@ -57,23 +59,28 @@ class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
 
   bool _onScroll(ScrollNotification notification) {
     final metrics = notification.metrics;
-    // Standard scrollables report their ScrollPosition here, which is the only
-    // handle on the position available from a notification.
-    if (metrics is ScrollPosition) _position = metrics;
-    _outerScrollable ??= _ancestorScrollable(notification.context);
+    if (metrics is ScrollPosition) _positions.add(metrics);
+    final outer = _ancestorPosition(notification.context);
+    if (outer != null) _positions.add(outer);
+
     final visible = metrics.pixels > _kShowAfter;
     if (visible != _visible) setState(() => _visible = visible);
     return false;
   }
 
   void _backToTop() {
-    final target = _outerScrollable?.position ?? _position;
-    if (target == null || !target.hasPixels) return;
-    target.animateTo(
-      0,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
+    // Drive every position that is actually scrolled: in the nested layout that
+    // is the inner list *and* the outer view that owns the collapsing header;
+    // in the plain layouts it is just the list. Positions belonging to a
+    // background tab sit at zero and are skipped.
+    for (final position in _positions.toList()) {
+      if (!position.hasPixels || position.pixels <= 0) continue;
+      position.animateTo(
+        0,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   @override
