@@ -28,6 +28,7 @@ import 'routes/router_config.dart';
 import 'utils/extensions/custom_extensions.dart';
 import 'utils/launch_url_in_web.dart';
 import 'utils/misc/toast/toast.dart';
+import 'utils/motion/page_transition_speed.dart';
 import 'utils/motion/reduce_motion.dart';
 import 'utils/theme/app_theme_builder.dart';
 import 'widgets/desktop/desktop_window_scaffold.dart';
@@ -139,12 +140,14 @@ class Sorayomi extends HookConsumerWidget {
         brightness: Brightness.light,
         customSeed: Color(customSeed ?? 0xFF7C7BFF),
         amoled: false,
+        pageTransitionDuration: ref.watch(pageTransitionSpeedProvider).duration,
       ),
       darkTheme: buildAppTheme(
         theme: appTheme,
         brightness: Brightness.dark,
         customSeed: Color(customSeed ?? 0xFF7C7BFF),
         amoled: isTrueBlack,
+        pageTransitionDuration: ref.watch(pageTransitionSpeedProvider).duration,
       ),
       themeMode: themeMode ?? ThemeMode.system,
       scrollBehavior: const AppScrollBehavior(),

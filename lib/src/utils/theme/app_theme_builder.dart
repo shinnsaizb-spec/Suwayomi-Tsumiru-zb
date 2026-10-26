@@ -14,6 +14,7 @@ ThemeData buildAppTheme({
   required Brightness brightness,
   required Color customSeed,
   required bool amoled,
+  Duration pageTransitionDuration = const Duration(milliseconds: 300),
 }) {
   final tokens = theme == AppTheme.custom ? null : tokensFor(theme, brightness);
   ColorScheme scheme = theme == AppTheme.custom
@@ -51,6 +52,15 @@ ThemeData buildAppTheme({
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    // Slows (or speeds up) every page transition, and with it every
+    // shared-element flight — Hero takes its duration from the route, so this
+    // is the single lever for both.
+    pageTransitionsTheme: PageTransitionsTheme(
+      builders: {
+        for (final platform in TargetPlatform.values)
+          platform: _TimedPageTransitionsBuilder(pageTransitionDuration),
+      },
+    ),
     extensions: [brandColors],
     scaffoldBackgroundColor: scheme.surface,
     // Left-aligned titles app-wide; flat surface app bar (no grey elevation).
@@ -194,4 +204,40 @@ ThemeData buildAppTheme({
       ),
     ),
   );
+}
+
+/// Delegates the actual transition to whatever the platform would have used,
+/// and changes only how long it runs.
+///
+/// `MaterialRouteTransitionMixin.transitionDuration` reads the builder's
+/// duration, so this is what makes the in-app speed setting work — including
+/// for shared-element flights, which ride the route's duration.
+class _TimedPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _TimedPageTransitionsBuilder(this.duration);
+
+  final Duration duration;
+
+  @override
+  Duration get transitionDuration => duration;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final platform = Theme.of(context).platform;
+    final base =
+        const PageTransitionsTheme().builders[platform] ??
+        const ZoomPageTransitionsBuilder();
+    return base.buildTransitions(
+      route,
+      context,
+      animation,
+      secondaryAnimation,
+      child,
+    );
+  }
 }

@@ -3816,5 +3816,11 @@
   "downloadingUpdate": "正在下載更新…",
   "installPermissionRequired": "請先允許「安裝未知應用程式」，然後再試一次。",
   "updateNoApkAsset": "這個版本沒有附帶安裝包，請到發佈頁下載。",
-  "updateInstallFailed": "沒能開啟安裝程式，請到發佈頁下載。"
+  "updateInstallFailed": "沒能開啟安裝程式，請到發佈頁下載。",
+  "pageTransitionSpeed": "頁面動畫速度",
+  "pageTransitionSpeedDescription": "翻頁與封面轉場的時長。",
+  "pageTransitionFast": "快",
+  "pageTransitionNormal": "正常",
+  "pageTransitionSlow": "慢",
+  "pageTransitionSlowest": "很慢"
 }

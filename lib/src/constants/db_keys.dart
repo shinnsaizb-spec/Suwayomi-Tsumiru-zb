@@ -355,6 +355,12 @@ enum DBKeys {
   // so this is a local filter, not an enforced rule.
   blockedExtensionPackages(<String>[]),
 
+  // How long a page transition (and therefore the cover / FAB shared-element
+  // flight) takes, as an index into PageTransitionSpeed: 0 fast, 1 normal,
+  // 2 slow, 3 slowest. Defaults to slow — the stock 300ms reads as a snap
+  // next to the shared-element flights.
+  pageTransitionSpeed(2),
+
   // How often the library's connection probe retries while the server is
   // unreachable, in seconds. 0 (the default) means it does not retry on its
   // own: the user taps the connection icon to try again.

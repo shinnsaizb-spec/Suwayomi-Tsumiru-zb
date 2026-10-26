@@ -35,21 +35,41 @@ class LibraryScrollTopFab extends StatefulWidget {
 class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
   bool _visible = false;
   ScrollPosition? _position;
+  ScrollableState? _outerScrollable;
+
+  /// The nearest ancestor scrollable of the one that reported the scroll.
+  ///
+  /// The shelf scrolls inside a `NestedScrollView`, so notifications come from
+  /// the *inner* list; animating its position alone leaves the collapsing
+  /// header where it is and the page barely moves. The outer scrollable is the
+  /// one that drives the whole page back up.
+  static ScrollableState? _ancestorScrollable(BuildContext? context) {
+    ScrollableState? found;
+    context?.visitAncestorElements((element) {
+      if (element is StatefulElement && element.state is ScrollableState) {
+        found = element.state as ScrollableState;
+        return false;
+      }
+      return true;
+    });
+    return found;
+  }
 
   bool _onScroll(ScrollNotification notification) {
     final metrics = notification.metrics;
     // Standard scrollables report their ScrollPosition here, which is the only
     // handle on the position available from a notification.
     if (metrics is ScrollPosition) _position = metrics;
+    _outerScrollable ??= _ancestorScrollable(notification.context);
     final visible = metrics.pixels > _kShowAfter;
     if (visible != _visible) setState(() => _visible = visible);
     return false;
   }
 
   void _backToTop() {
-    final position = _position;
-    if (position == null || !position.hasPixels) return;
-    position.animateTo(
+    final target = _outerScrollable?.position ?? _position;
+    if (target == null || !target.hasPixels) return;
+    target.animateTo(
       0,
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
