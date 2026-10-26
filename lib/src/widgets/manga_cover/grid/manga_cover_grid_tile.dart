@@ -321,44 +321,52 @@ class MangaCoverGridTile extends StatelessWidget {
     final Widget image = MangaCoverHero(
       tag: mangaCoverHeroTag(manga.id),
       enabled: enableHero,
-      child: Container(
-        foregroundDecoration: BoxDecoration(
-          border: Border.all(width: 0, color: context.theme.canvasColor),
-          boxShadow: showDarkOverlay
-              ? [
-                  BoxShadow(
-                    color: context.theme.canvasColor.withValues(alpha: .5),
-                  ),
-                ]
-              : null,
-          // Theme-independent scrim (Komikku: transparent → 67% black over the
-          // bottom third) — the title always reads white-on-dark in both light
-          // and dark mode.
-          gradient: _overlayTitle
-              ? const LinearGradient(
-                  begin: Alignment(0, 1 / 3),
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, OnImage.scrim],
-                )
-              : null,
-        ),
-        // Decode at tile size, not source size: full-res covers overflow
-        // Flutter's decoded-image budget after a few dozen tiles, so every tab
-        // switch re-decoded (and re-shimmered) the whole grid.
-        child: LayoutBuilder(
-          builder: (context, constraints) => ServerImage(
-            imageUrl: manga.thumbnailUrl ?? "",
-            memCacheWidth: constraints.hasBoundedWidth
-                ? (constraints.maxWidth *
-                          MediaQuery.devicePixelRatioOf(context))
-                      .round()
-                      .clamp(1, 1 << 16)
+      // Rounded inside the Hero as well as by the surrounding Card. The flight
+      // shuttle carries this widget and a Card's clip does not travel with it,
+      // so the corners snapped square for the length of the transition and back
+      // to round on arrival.
+      child: ClipRRect(
+        borderRadius: KBorderRadius.r12.radius,
+        child: Container(
+          foregroundDecoration: BoxDecoration(
+            border: Border.all(width: 0, color: context.theme.canvasColor),
+            boxShadow: showDarkOverlay
+                ? [
+                    BoxShadow(
+                      color: context.theme.canvasColor.withValues(alpha: .5),
+                    ),
+                  ]
                 : null,
-            // A freeform tile is only as tall as its cover, so a screen-relative
-            // shimmer would make the grid lurch once the art lands.
-            progressIndicatorBuilder: freeform
-                ? (context, url, progress) => const _FreeformCoverPlaceholder()
+            // Theme-independent scrim (Komikku: transparent → 67% black over the
+            // bottom third) — the title always reads white-on-dark in both light
+            // and dark mode.
+            gradient: _overlayTitle
+                ? const LinearGradient(
+                    begin: Alignment(0, 1 / 3),
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, OnImage.scrim],
+                  )
                 : null,
+          ),
+          // Decode at tile size, not source size: full-res covers overflow
+          // Flutter's decoded-image budget after a few dozen tiles, so every tab
+          // switch re-decoded (and re-shimmered) the whole grid.
+          child: LayoutBuilder(
+            builder: (context, constraints) => ServerImage(
+              imageUrl: manga.thumbnailUrl ?? "",
+              memCacheWidth: constraints.hasBoundedWidth
+                  ? (constraints.maxWidth *
+                            MediaQuery.devicePixelRatioOf(context))
+                        .round()
+                        .clamp(1, 1 << 16)
+                  : null,
+              // A freeform tile is only as tall as its cover, so a screen-relative
+              // shimmer would make the grid lurch once the art lands.
+              progressIndicatorBuilder: freeform
+                  ? (context, url, progress) =>
+                        const _FreeformCoverPlaceholder()
+                  : null,
+            ),
           ),
         ),
       ),
