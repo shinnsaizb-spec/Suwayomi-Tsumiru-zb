@@ -3811,5 +3811,10 @@
   "nSelected": "已選 {count} 項",
   "noCollectionsHint": "點擊 + 把幾部漫畫歸到一個合集裡。",
   "blockedExtensions": "封鎖的擴充套件",
-  "blockedExtensionsDescription": "封鎖後，該擴充套件及其包含的所有來源都不會出現在瀏覽和搜尋裡。僅在本機生效。"
+  "blockedExtensionsDescription": "封鎖後，該擴充套件及其包含的所有來源都不會出現在瀏覽和搜尋裡。僅在本機生效。",
+  "downloadAndInstall": "下載並安裝",
+  "downloadingUpdate": "正在下載更新…",
+  "installPermissionRequired": "請先允許「安裝未知應用程式」，然後再試一次。",
+  "updateNoApkAsset": "這個版本沒有附帶安裝包，請到發佈頁下載。",
+  "updateInstallFailed": "沒能開啟安裝程式，請到發佈頁下載。"
 }

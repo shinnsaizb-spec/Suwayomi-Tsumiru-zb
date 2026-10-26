@@ -9,10 +9,9 @@
 name: Flatpak
 
 on:
+  # Manual only: this fork does not publish to flatpak.tsumiru.app, and the tag
+  # trigger used to fire alongside `Release (zb-manga)` on every release.
   workflow_dispatch:
-  push:
-    tags:
-      - "v*.*.*"
 
 permissions:
   contents: read

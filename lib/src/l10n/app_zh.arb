@@ -3886,5 +3886,10 @@
   "nSelected": "已选 {count} 项",
   "noCollectionsHint": "点击 + 把几部漫画归到一个合集里。",
   "blockedExtensions": "屏蔽的插件",
-  "blockedExtensionsDescription": "屏蔽后，该插件及其包含的所有源都不会出现在浏览和搜索里。仅在本机生效。"
+  "blockedExtensionsDescription": "屏蔽后，该插件及其包含的所有源都不会出现在浏览和搜索里。仅在本机生效。",
+  "downloadAndInstall": "下载并安装",
+  "downloadingUpdate": "正在下载更新…",
+  "installPermissionRequired": "请先允许「安装未知应用」，然后再试一次。",
+  "updateNoApkAsset": "这个版本没有附带安装包，请到发布页下载。",
+  "updateInstallFailed": "没能打开安装程序，请到发布页下载。"
 }

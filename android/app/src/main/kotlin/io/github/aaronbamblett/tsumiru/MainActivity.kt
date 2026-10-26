@@ -3,11 +3,14 @@ package io.github.aaronbamblett.tsumiru
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.core.content.FileProvider
 import io.flutter.embedding.engine.FlutterEngine
@@ -133,6 +136,63 @@ class MainActivity: FlutterAndroidVolumeKeydownActivity() {
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("COPY_FAILED", e.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        // In-app update: hand a downloaded APK to the system installer.
+        // Android never allows a silent install from a normal app, so the user
+        // still taps "Install" — but they no longer have to leave the app,
+        // download from a browser and find the file in Downloads.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "tsumiru/apk_installer")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // Android 8+ gates this per package ("install unknown apps").
+                    "canInstallPackages" -> result.success(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            packageManager.canRequestPackageInstalls()
+                        } else {
+                            true
+                        }
+                    )
+                    "openInstallSettings" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:$packageName")
+                                )
+                            )
+                        }
+                        result.success(null)
+                    }
+                    "install" -> {
+                        try {
+                            val path = call.argument<String>("path")
+                            if (path == null) {
+                                result.error("INVALID_ARGS", "path is null", null)
+                                return@setMethodCallHandler
+                            }
+                            // The APK lives in the app cache, which file_paths.xml
+                            // already exposes to this provider.
+                            val uri = FileProvider.getUriForFile(
+                                this, "$packageName.fileprovider", File(path)
+                            )
+                            startActivity(
+                                Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(
+                                        uri, "application/vnd.android.package-archive"
+                                    )
+                                    addFlags(
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                            Intent.FLAG_ACTIVITY_NEW_TASK
+                                    )
+                                }
+                            )
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("INSTALL_FAILED", e.message, null)
                         }
                     }
                     else -> result.notImplemented()

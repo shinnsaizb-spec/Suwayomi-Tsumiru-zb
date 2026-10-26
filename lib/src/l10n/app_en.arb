@@ -4113,5 +4113,10 @@
   },
   "noCollectionsHint": "Tap + to group several manga into one collection.",
   "blockedExtensions": "Blocked extensions",
-  "blockedExtensionsDescription": "Hide these plugins, and every source they contain, from browsing and search. Applies to this device only."
+  "blockedExtensionsDescription": "Hide these plugins, and every source they contain, from browsing and search. Applies to this device only.",
+  "downloadAndInstall": "Download and install",
+  "downloadingUpdate": "Downloading update…",
+  "installPermissionRequired": "Allow \"install unknown apps\" for this app, then try again.",
+  "updateNoApkAsset": "This release has no APK attached. Download it from the release page.",
+  "updateInstallFailed": "Could not open the installer. Download it from the release page."
 }

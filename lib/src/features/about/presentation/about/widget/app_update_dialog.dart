@@ -15,7 +15,9 @@ import '../../../../../utils/launch_url_in_web.dart';
 import '../../../../../utils/misc/toast/toast.dart';
 import '../../../../../utils/motion/reduce_motion.dart';
 import '../../../data/about_repository.dart';
+import '../../../data/update_installer.dart';
 import '../../../data/web_update_browser.dart';
+import 'update_install_dialog.dart';
 
 void appUpdateDialog({
   required String title,
@@ -60,7 +62,7 @@ void appUpdateDialog({
               onPressed: () => Navigator.pop(context),
               child: Text(context.l10n.close),
             ),
-            ElevatedButton.icon(
+            TextButton.icon(
               onPressed: () {
                 launchUrlInWeb(
                   context,
@@ -72,6 +74,21 @@ void appUpdateDialog({
               icon: const Icon(BrandIcons.github),
               label: Text(context.l10n.gitHub),
             ),
+            // Android can install it in-app; everything else keeps the release
+            // page as the only option.
+            if (AndroidUpdateInstaller.isSupported)
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (_) => const UpdateInstallDialog(),
+                    animationStyle: context.motionStyle,
+                  );
+                },
+                icon: const Icon(Icons.system_update_alt_rounded),
+                label: Text(context.l10n.downloadAndInstall),
+              ),
           ],
         ),
       );

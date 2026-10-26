@@ -99,11 +99,16 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
 
   /// Tap + long-press wrapper shared by every mode. These don't fight
   /// multi-touch, so they're always safe to layer over the reader content.
+  ///
+  /// Taps go through [_TapGate] rather than `GestureDetector.onTap`: in the
+  /// vertical (webtoon / continuous) modes the scroll is driven by ZoomView's
+  /// own recognizer, so a drag that only moves the finger a little never makes
+  /// the tap recognizer lose the arena — scrolling then toggled the chrome.
+  /// The gate only reports a tap when the finger barely moved.
   Widget _wrapWithTapAndLongPress(Widget child) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onLongPressStart: onLongPressStart,
+    return _TapGate(
       onTap: onTap,
+      onLongPressStart: onLongPressStart,
       child: child,
     );
   }
@@ -416,5 +421,88 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
     } else {
       _navigateToNextChapterWithFallback(context);
     }
+  }
+}
+
+/// Finger travel still allowed for a press to count as a tap, in logical
+/// pixels. Deliberately well under Flutter's 18px `kTouchSlop`, because the
+/// webtoon scroll needs a little more travel than that before ZoomView starts
+/// moving — the gap was what turned scroll starts into taps.
+const double _kTapMoveSlop = 12;
+
+/// Reports a tap only when the finger barely moved and no long press fired.
+///
+/// `GestureDetector.onTap` is not enough in the vertical modes: the scrolling
+/// there is driven by ZoomView's own recognizer rather than a `Scrollable`, so
+/// the tap recognizer can still win the arena on a small drag and toggle the
+/// chrome while the reader is scrolling. A movement gate does not care which
+/// recognizer wins — it only looks at how far the finger actually travelled.
+class _TapGate extends StatefulWidget {
+  const _TapGate({
+    required this.onTap,
+    required this.onLongPressStart,
+    required this.child,
+  });
+
+  final VoidCallback onTap;
+  final void Function(LongPressStartDetails)? onLongPressStart;
+  final Widget child;
+
+  @override
+  State<_TapGate> createState() => _TapGateState();
+}
+
+class _TapGateState extends State<_TapGate> {
+  Offset? _downPosition;
+  bool _moved = false;
+  bool _longPressFired = false;
+  int _pointers = 0;
+
+  void _reset() {
+    _downPosition = null;
+    _moved = false;
+    _longPressFired = false;
+    _pointers = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        _pointers++;
+        if (_pointers > 1) {
+          // Second finger means pinch-zoom, never a tap.
+          _moved = true;
+          return;
+        }
+        _downPosition = event.position;
+        _moved = false;
+        _longPressFired = false;
+      },
+      onPointerMove: (event) {
+        final down = _downPosition;
+        if (down == null || _moved) return;
+        if ((event.position - down).distance > _kTapMoveSlop) _moved = true;
+      },
+      onPointerUp: (_) {
+        _pointers = _pointers > 0 ? _pointers - 1 : 0;
+        if (_pointers > 0) return;
+        final isTap = _downPosition != null && !_moved && !_longPressFired;
+        _reset();
+        if (isTap) widget.onTap();
+      },
+      onPointerCancel: (_) => _reset(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPressStart: widget.onLongPressStart == null
+            ? null
+            : (details) {
+                _longPressFired = true;
+                widget.onLongPressStart!(details);
+              },
+        child: widget.child,
+      ),
+    );
   }
 }

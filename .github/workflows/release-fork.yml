@@ -31,9 +31,12 @@ on:
   # release-attach and publish steps are skipped, so nothing is published.
   schedule:
     - cron: '0 6 * * 1'
-  push:
-    tags:
-      - "v*.*.*"
+  # No `push: tags` here on purpose. This fork releases through
+  # `release-zb.yml` (Android + Windows, published directly); letting this one
+  # run on the same tag built six platforms nobody installs, attached a second
+  # set of assets to the same release, and could flip it back to draft after
+  # `release-zb` had published it — which makes `releases/latest` skip it and
+  # the in-app update check go quiet. Run it by hand if the full set is needed.
 
 env:
   pkg_name: tsumiru
