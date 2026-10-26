@@ -467,13 +467,18 @@ class _TapGateState extends State<_TapGate> {
   Offset? _downPosition;
   bool _moved = false;
   bool _longPressFired = false;
-  int _pointers = 0;
+
+  /// The pointer this gesture belongs to. Tracked by id rather than by a count:
+  /// a count that ever drifts (a lost up, a cancel that only resets) leaves the
+  /// gate believing a finger is still down and refuses every later tap, which
+  /// looks exactly like "taps stopped working".
+  int? _pointer;
 
   void _reset() {
     _downPosition = null;
     _moved = false;
     _longPressFired = false;
-    _pointers = 0;
+    _pointer = null;
   }
 
   @override
@@ -481,32 +486,34 @@ class _TapGateState extends State<_TapGate> {
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
-        _pointers++;
-        if (_pointers > 1) {
-          // Second finger means pinch-zoom, never a tap.
-          _moved = true;
+        if (_pointer == null) {
+          _pointer = event.pointer;
+          _downPosition = event.position;
+          _moved = false;
+          _longPressFired = false;
           return;
         }
-        _downPosition = event.position;
-        _moved = false;
-        _longPressFired = false;
+        // A second finger means pinch-zoom, never a tap — but it must not
+        // abandon the gesture: the first finger's up still resets the gate.
+        if (event.pointer != _pointer) _moved = true;
       },
       onPointerMove: (event) {
         final down = _downPosition;
-        if (down == null || _moved) return;
+        if (down == null || _moved || event.pointer != _pointer) return;
         if ((event.position - down).distance > _kTapMoveSlop) {
           _moved = true;
           widget.onDragDetected?.call();
         }
       },
-      onPointerUp: (_) {
-        _pointers = _pointers > 0 ? _pointers - 1 : 0;
-        if (_pointers > 0) return;
+      onPointerUp: (event) {
+        if (event.pointer != _pointer) return;
         final isTap = _downPosition != null && !_moved && !_longPressFired;
         _reset();
         if (isTap) widget.onTap();
       },
-      onPointerCancel: (_) => _reset(),
+      onPointerCancel: (event) {
+        if (event.pointer == _pointer) _reset();
+      },
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onLongPressStart: widget.onLongPressStart == null

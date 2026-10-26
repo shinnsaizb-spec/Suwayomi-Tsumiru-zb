@@ -1177,11 +1177,19 @@ class ReaderView extends HookConsumerWidget {
     // A tap that lands during — or right after — a scroll is almost always the
     // finger settling on a coasting list, not an intentional tap on the page.
     // Refuse those for a short window instead of toggling the chrome mid-scroll.
+    //
+    // Vertical modes only: in the paged modes a horizontal swipe is a page turn
+    // and tapping right after it is normal, so muting there would just make the
+    // reader feel unresponsive.
+    final muteTapsAfterScroll = scrollDirection == Axis.vertical;
     void guardedToggleVisibility() {
-      final lastScroll = ref.read(readerLastScrollAtProvider);
-      if (lastScroll != null &&
-          DateTime.now().difference(lastScroll) < kReaderTapAfterScrollWindow) {
-        return;
+      if (muteTapsAfterScroll) {
+        final lastScroll = ref.read(readerLastScrollAtProvider);
+        if (lastScroll != null &&
+            DateTime.now().difference(lastScroll) <
+                kReaderTapAfterScrollWindow) {
+          return;
+        }
       }
       toggleVisibility();
     }
@@ -1238,10 +1246,23 @@ class ReaderView extends HookConsumerWidget {
       children: [
         // Record every scroll motion so the tap handler can refuse taps that
         // arrive while the page is (or was just) moving.
+        //
+        // Only drags count: a ballistic fling, an auto-scroll or any
+        // programmatic jump reports updates too, and letting those refresh the
+        // timestamp kept the tap handler muted for as long as the page moved —
+        // which read as "taps stopped working".
         NotificationListener<ScrollNotification>(
           onNotification: (notification) {
-            if (notification is ScrollStartNotification ||
-                notification is ScrollUpdateNotification) {
+            final isDrag =
+                muteTapsAfterScroll &&
+                switch (notification) {
+                  ScrollStartNotification(:final dragDetails) =>
+                    dragDetails != null,
+                  ScrollUpdateNotification(:final dragDetails) =>
+                    dragDetails != null,
+                  _ => false,
+                };
+            if (isDrag) {
               ref.read(readerLastScrollAtProvider.notifier).state =
                   DateTime.now();
             }
