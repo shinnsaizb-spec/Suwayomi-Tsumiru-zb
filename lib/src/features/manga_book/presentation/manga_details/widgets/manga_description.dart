@@ -143,12 +143,6 @@ class MangaDescription extends HookConsumerWidget {
             ),
           );
 
-    // TEMPORARY DIAGNOSTIC
-    debugPrint(
-      '[desc] mqTop=${MediaQuery.paddingOf(context).top} '
-      'toolbar=${kToolbarHeight}',
-    );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

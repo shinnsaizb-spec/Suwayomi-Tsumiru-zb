@@ -41,9 +41,6 @@ class MangaDetailsSkeleton extends ConsumerWidget {
 
   final int mangaId;
 
-  /// TEMPORARY DIAGNOSTIC — removed once the frame's top offset matches.
-  static bool _logged = false;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cached = _cachedManga(ref);
@@ -61,20 +58,6 @@ class MangaDetailsSkeleton extends ConsumerWidget {
             borderRadius: BorderRadius.circular(6),
           ),
         );
-
-    // TEMPORARY DIAGNOSTIC
-    if (!_logged) {
-      _logged = true;
-      final mq = MediaQuery.paddingOf(context);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final box = context.findRenderObject();
-        debugPrint(
-          '[frame] mqTop=${mq.top} viewInsets=${mq.bottom} '
-          'extend=${!ref.read(serverUnreachableProvider)} '
-          'screenDy=${box is RenderBox && box.attached ? box.localToGlobal(Offset.zero).dy : -1}',
-        );
-      });
-    }
 
     return Scaffold(
       // Same expression the loaded page uses (`selectedChapters` is empty while
@@ -194,8 +177,14 @@ class MangaDetailsSkeleton extends ConsumerWidget {
                 ),
               ),
               Padding(
+                // The loaded page's own content sees statusBar + kToolbarHeight
+                // here (the Scaffold hands the description an inset that already
+                // includes the bar), while this frame's Scaffold only reports
+                // the status bar. Adding the toolbar height lands the cover
+                // exactly where the loaded page puts it; without it everything
+                // sat one bar too high until the data arrived.
                 padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + 8,
+                  top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
                 ),
                 child: cached != null
                     ? MangaCoverDescriptiveListTile(
