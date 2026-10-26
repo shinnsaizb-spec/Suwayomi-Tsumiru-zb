@@ -57,7 +57,13 @@ class LibrarySectionsView extends HookConsumerWidget {
     }
     headerKeys.value.removeWhere((id, _) => !sections.any((s) => s.id == id));
 
-    final scrollController = useScrollController();
+    // Prefer the controller the shelf hands down through the primary scope
+    // (the back-to-top button owns it) so the button can drive this list. The
+    // own controller stays as the fallback for the nested layout, which
+    // supplies its own.
+    final inheritedController = PrimaryScrollController.maybeOf(context);
+    final ownController = useScrollController();
+    final scrollController = inheritedController ?? ownController;
 
     // Tracks which section is at the top of the viewport.
     useEffect(() {

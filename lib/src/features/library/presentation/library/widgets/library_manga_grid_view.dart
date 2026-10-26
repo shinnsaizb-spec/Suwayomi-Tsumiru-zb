@@ -61,17 +61,21 @@ class LibraryMangaGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => CustomScrollView(
-        slivers: [
-          LibraryMangaSliver(
-            items: items,
-            onOpen: onOpen,
-            onLongPress: onLongPress,
-            selection: selection,
-            collections: collections,
-            onOpenCollection: onOpenCollection,
-          ),
-        ],
-      );
+    // Attach to the shelf's primary controller when there is one, so the
+    // back-to-top button can scroll this list. Android does not inherit the
+    // primary controller on its own, which is why the button used to miss.
+    primary: PrimaryScrollController.maybeOf(context) != null,
+    slivers: [
+      LibraryMangaSliver(
+        items: items,
+        onOpen: onOpen,
+        onLongPress: onLongPress,
+        selection: selection,
+        collections: collections,
+        onOpenCollection: onOpenCollection,
+      ),
+    ],
+  );
 }
 
 /// The sliver that lays [items] out under the active [DisplayMode] and
@@ -109,19 +113,23 @@ class LibraryMangaSliver extends ConsumerWidget {
         ref.watch(libraryGridStyleKeyProvider) ?? LibraryGridStyle.uniform;
     final outlineOnCovers = ref.watch(outlineOnCoversProvider).ifNull(true);
     final limitTitleLines = ref.watch(limitTitleLinesProvider).ifNull(true);
-    final listScale = ref.watch(libraryListScaleProvider) ??
+    final listScale =
+        ref.watch(libraryListScaleProvider) ??
         DBKeys.listScale.initial as double;
-    final gridWidth = ref.watch(gridMinWidthProvider) ??
+    final gridWidth =
+        ref.watch(gridMinWidthProvider) ??
         DBKeys.gridMangaCoverWidth.initial as double;
     final isLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
-    final fixedCols = (isLandscape
+    final fixedCols =
+        (isLandscape
             ? ref.watch(libraryLandscapeColumnsProvider)
             : ref.watch(libraryPortraitColumnsProvider)) ??
         0;
 
-    final showContinueReading =
-        ref.watch(showContinueReadingButtonProvider).ifNull(false);
+    final showContinueReading = ref
+        .watch(showContinueReadingButtonProvider)
+        .ifNull(false);
     final selecting = selection.isNotEmpty;
     VoidCallback? continueReadingFor(MangaDto manga) {
       // While multi-selecting, taps belong to the selection.
@@ -144,13 +152,13 @@ class LibraryMangaSliver extends ConsumerWidget {
     // every tile. The user's column count, or Auto (width-based).
     SliverGridDelegate uniformDelegate({bool titleBelow = false}) =>
         fixedCols > 0
-            ? MangaCoverFixedCountGridDelegate(
-                crossAxisCount: fixedCols,
-                crossAxisSpacing: 2.0,
-                mainAxisSpacing: 2.0,
-                titleExtent: titleBelow ? kGridTitleExtent : 0.0,
-              )
-            : mangaCoverGridDelegate(gridWidth, titleBelow: titleBelow);
+        ? MangaCoverFixedCountGridDelegate(
+            crossAxisCount: fixedCols,
+            crossAxisSpacing: 2.0,
+            mainAxisSpacing: 2.0,
+            titleExtent: titleBelow ? kGridTitleExtent : 0.0,
+          )
+        : mangaCoverGridDelegate(gridWidth, titleBelow: titleBelow);
 
     // Freeform layouts take a SliverSimpleGridDelegate instead: it only decides
     // the cross-axis split and leaves each tile's height to the tile.
@@ -194,18 +202,17 @@ class LibraryMangaSliver extends ConsumerWidget {
           // Hide the members from the sort, but not from the collections'
           // keys: their unread sums and dates still describe the collection.
           memberStatsFrom: {for (final m in items) m.id: m},
-          axis:
-              ref.watch(libraryMangaSortProvider) ?? DBKeys.mangaSort.initial,
-          descending: ref
-              .watch(libraryMangaSortDirectionProvider)
-              .ifNull(true),
+          axis: ref.watch(libraryMangaSortProvider) ?? DBKeys.mangaSort.initial,
+          descending: ref.watch(libraryMangaSortDirectionProvider).ifNull(true),
           seed:
               ref.watch(librarySortRandomSeedProvider) ??
               DBKeys.librarySortRandomSeed.initial as int,
         );
       } catch (e, st) {
-        debugPrint('library-entries: collection merge failed, using '
-            'collections-first: $e\n$st');
+        debugPrint(
+          'library-entries: collection merge failed, using '
+          'collections-first: $e\n$st',
+        );
         entries = [...collections, ...visibleItems];
       }
     }
@@ -250,13 +257,13 @@ class LibraryMangaSliver extends ConsumerWidget {
 
     // Re-keys masonry on item order changes to prevent crashes from nulled child offsets.
     Key masonryOrderKey() => ValueKey(
-          Object.hashAll([
-            for (final entry in entries)
-              entry is Collection
-                  ? 'col:${entry.id}'
-                  : 'manga:${(entry as MangaDto).id}',
-          ]),
-        );
+      Object.hashAll([
+        for (final entry in entries)
+          entry is Collection
+              ? 'col:${entry.id}'
+              : 'manga:${(entry as MangaDto).id}',
+      ]),
+    );
 
     Widget grid({bool titleBelow = false, bool showTitle = true}) {
       Widget tile(BuildContext context, int index) {
@@ -291,43 +298,40 @@ class LibraryMangaSliver extends ConsumerWidget {
 
       return switch (gridStyle) {
         LibraryGridStyle.uniform => SliverGrid(
-            gridDelegate: uniformDelegate(titleBelow: titleBelow),
-            delegate: SliverChildBuilderDelegate(
-              tile,
-              childCount: totalCount,
-              findChildIndexCallback: findChildIndex,
-            ),
+          gridDelegate: uniformDelegate(titleBelow: titleBelow),
+          delegate: SliverChildBuilderDelegate(
+            tile,
+            childCount: totalCount,
+            findChildIndexCallback: findChildIndex,
           ),
+        ),
         // Rows are as tall as their tallest cover and tiles bottom-align inside them.
         LibraryGridStyle.nonUniform => SliverAlignedGrid(
-            gridDelegate: freeformDelegate(),
-            itemCount: totalCount,
-            itemBuilder: tile,
-            mainAxisSpacing: 2.0,
-            crossAxisSpacing: 2.0,
-          ),
+          gridDelegate: freeformDelegate(),
+          itemCount: totalCount,
+          itemBuilder: tile,
+          mainAxisSpacing: 2.0,
+          crossAxisSpacing: 2.0,
+        ),
         // Masonry: independent column packing. Re-keyed on item order instead of moving children.
         LibraryGridStyle.staggered => SliverMasonryGrid(
-            key: masonryOrderKey(),
-            gridDelegate: freeformDelegate(),
-            delegate: SliverChildBuilderDelegate(
-              tile,
-              childCount: totalCount,
-            ),
-            mainAxisSpacing: 2.0,
-            crossAxisSpacing: 2.0,
-          ),
+          key: masonryOrderKey(),
+          gridDelegate: freeformDelegate(),
+          delegate: SliverChildBuilderDelegate(tile, childCount: totalCount),
+          mainAxisSpacing: 2.0,
+          crossAxisSpacing: 2.0,
+        ),
       };
     }
 
     // Rows scale as one unit: the tile scales its cover box, this scales the
     // text inside it.
     Widget scaled(Widget child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: _listTextScaler(context, listScale),
-          ),
-          child: child,
-        );
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: _listTextScaler(context, listScale)),
+      child: child,
+    );
 
     // Row extents track the same composed factor as the text inside them: the
     // shipped 96/176 were tuned at scale 1.0.
@@ -347,12 +351,14 @@ class LibraryMangaSliver extends ConsumerWidget {
         (context, index) {
           final item = itemAt(index);
           if (item is Collection) {
-            return scaled(CollectionListTile(
-              key: ValueKey<String>('col:${item.id}'),
-              collection: item,
-              onTap: () => openCollection(item),
-              descriptive: descriptive,
-            ));
+            return scaled(
+              CollectionListTile(
+                key: ValueKey<String>('col:${item.id}'),
+                collection: item,
+                onTap: () => openCollection(item),
+                descriptive: descriptive,
+              ),
+            );
           }
           return mangaBuilder(context, item as MangaDto);
         },
@@ -366,8 +372,9 @@ class LibraryMangaSliver extends ConsumerWidget {
 
     return switch (displayMode) {
       DisplayMode.list || null => listSliver(
-          extent: 96 * rowScale,
-          mangaBuilder: (context, manga) => scaled(MangaCoverListTile(
+        extent: 96 * rowScale,
+        mangaBuilder: (context, manga) => scaled(
+          MangaCoverListTile(
             key: ValueKey<int>(manga.id),
             manga: manga,
             selected: selection.contains(manga.id),
@@ -377,13 +384,15 @@ class LibraryMangaSliver extends ConsumerWidget {
             showCountBadges: true,
             scale: listScale,
             limitTitleLines: limitTitleLines,
-          )),
+          ),
         ),
+      ),
       DisplayMode.descriptiveList => listSliver(
-          extent: 176 * rowScale,
-          fixedExtent: false,
-          descriptive: true,
-          mangaBuilder: (context, manga) => scaled(MangaCoverDescriptiveListTile(
+        extent: 176 * rowScale,
+        fixedExtent: false,
+        descriptive: true,
+        mangaBuilder: (context, manga) => scaled(
+          MangaCoverDescriptiveListTile(
             key: ValueKey<int>(manga.id),
             manga: manga,
             selected: selection.contains(manga.id),
@@ -394,8 +403,9 @@ class LibraryMangaSliver extends ConsumerWidget {
             outlineOnCovers: outlineOnCovers,
             scale: listScale,
             titleMaxLines: limitTitleLines ? 2 : null,
-          )),
+          ),
         ),
+      ),
       DisplayMode.grid => grid(),
       DisplayMode.comfortableGrid => grid(titleBelow: true),
       DisplayMode.coverOnly => grid(showTitle: false),
