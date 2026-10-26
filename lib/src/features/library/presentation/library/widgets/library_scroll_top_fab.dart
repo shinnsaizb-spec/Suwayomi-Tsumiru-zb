@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../utils/motion/reduce_motion.dart';
+import '../../../../../utils/theme/brand.dart';
 import '../../../../../widgets/read_fab_hero.dart';
 
 /// How far the shelf must scroll before the button appears — roughly one screen
@@ -132,19 +133,56 @@ class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
                 curve: Curves.easeOut,
                 child: _visible
                     ? ReadFabHero(
-                        child: FloatingActionButton.small(
-                          // Our own Hero wraps this one; the FAB's built-in hero
-                          // would nest inside it and trip the duplicate-tag
-                          // assertion.
-                          heroTag: null,
+                        child: _BrandSquareButton(
                           onPressed: _backToTop,
-                          child: const Icon(Icons.vertical_align_top_rounded),
+                          icon: const Icon(Icons.vertical_align_top_rounded),
                         ),
                       )
                     : const SizedBox.shrink(),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A square version of [BrandFab]: same gradient, same glow, same corner radius
+/// and same height as the series page's read button, so the two read as one
+/// control morphing rather than two different buttons swapping places.
+class _BrandSquareButton extends StatelessWidget {
+  const _BrandSquareButton({required this.onPressed, required this.icon});
+
+  final VoidCallback onPressed;
+  final Widget icon;
+
+  /// BrandFab's height: 14dp of padding above and below a 20dp row.
+  static const double _size = 48;
+  static const double _radius = 18;
+
+  @override
+  Widget build(BuildContext context) {
+    final brand = BrandColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: brand.gradient,
+        borderRadius: BorderRadius.circular(_radius),
+        boxShadow: brandGlow(Theme.of(context).colorScheme),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_radius),
+          onTap: onPressed,
+          child: SizedBox(
+            width: _size,
+            height: _size,
+            child: IconTheme.merge(
+              data: IconThemeData(color: brand.onGradient, size: 20),
+              child: Center(child: icon),
+            ),
+          ),
         ),
       ),
     );
