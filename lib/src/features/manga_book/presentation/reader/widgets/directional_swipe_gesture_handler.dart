@@ -105,7 +105,7 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
   /// `Listener` bookkeeping drifted out of sync with the real gesture. The
   /// misfire this was meant to solve is handled where it belongs: the tap
   /// handler ignores taps for a short window after a user scroll (see
-  /// [kReaderTapAfterScrollWindow]).
+  /// [readerTapMuteAfterScrollProvider]).
   Widget _wrapWithTapAndLongPress(Widget child) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,

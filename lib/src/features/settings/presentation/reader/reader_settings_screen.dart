@@ -20,6 +20,7 @@ import 'widgets/long_strip_width_limit_slider/long_strip_width_limit_slider.dart
 import 'widgets/reader_feedback_toasts_tile/reader_feedback_toasts_tile.dart';
 import 'widgets/reader_force_horizontal_seekbar_tile/reader_force_horizontal_seekbar_tile.dart';
 import 'widgets/reader_general_prefs/reader_general_prefs.dart';
+import 'widgets/reader_tap_mute_tile/reader_tap_mute_tile.dart';
 import 'widgets/reader_ignore_safe_area_tile/reader_ignore_safe_area_tile.dart';
 import 'widgets/reader_initial_overlay_tile/reader_initial_overlay_tile.dart';
 import 'widgets/reader_keep_screen_on_tile/reader_keep_screen_on_tile.dart';
@@ -48,8 +49,9 @@ class ReaderSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isVolumeTapEnabled = ref.watch(volumeTapProvider).ifNull();
-    final forceHorizontal =
-        ref.watch(forceHorizontalSeekbarProvider).ifNull(false);
+    final forceHorizontal = ref
+        .watch(forceHorizontalSeekbarProvider)
+        .ifNull(false);
     final fullscreen = ref.watch(readerFullscreenProvider).ifNull(true);
     final flash = ref.watch(flashOnPageChangeProvider).ifNull(false);
     final splitPaged = ref.watch(dualPageSplitPagedProvider).ifNull(false);
@@ -68,6 +70,7 @@ class ReaderSettingsScreen extends ConsumerWidget {
           // first, then Display, E-Ink, Reading, Paged, Long strip,
           // Navigation, Actions.
           const ReaderModeTile(),
+          const ReaderTapMuteTile(),
           // Tap zones and their inversion are per viewer, so they live in the
           // Paged and Long strip groups below — same as Komikku. Only the
           // overlay and the zone size are shared.
@@ -86,18 +89,18 @@ class ReaderSettingsScreen extends ConsumerWidget {
             _BoolTile(
               indent: true,
               title: context.l10n.showVerticalSeekbarInLandscape,
-              value:
-                  ref.watch(landscapeVerticalSeekbarProvider).ifNull(false),
-              onChanged:
-                  ref.read(landscapeVerticalSeekbarProvider.notifier).update,
+              value: ref.watch(landscapeVerticalSeekbarProvider).ifNull(false),
+              onChanged: ref
+                  .read(landscapeVerticalSeekbarProvider.notifier)
+                  .update,
             ),
             _BoolTile(
               indent: true,
               title: context.l10n.leftHandedVerticalSeekbar,
-              value:
-                  ref.watch(leftHandedVerticalSeekbarProvider).ifNull(false),
-              onChanged:
-                  ref.read(leftHandedVerticalSeekbarProvider.notifier).update,
+              value: ref.watch(leftHandedVerticalSeekbarProvider).ifNull(false),
+              onChanged: ref
+                  .read(leftHandedVerticalSeekbarProvider.notifier)
+                  .update,
             ),
           ],
 
@@ -111,7 +114,8 @@ class ReaderSettingsScreen extends ConsumerWidget {
               ReaderBackgroundColor.white,
               ReaderBackgroundColor.automatic,
             ],
-            selected: enumOf(readerBackgroundColorKeyProvider) ??
+            selected:
+                enumOf(readerBackgroundColorKeyProvider) ??
                 ReaderBackgroundColor.black,
             labelOf: (v) => v.toLocale(context),
             onSelected: setEnum(readerBackgroundColorKeyProvider.notifier),
@@ -152,7 +156,8 @@ class ReaderSettingsScreen extends ConsumerWidget {
           if (flash) ...[
             _IntSliderTile(
               title: context.l10n.flashDuration,
-              value: ref.watch(flashDurationProvider) ??
+              value:
+                  ref.watch(flashDurationProvider) ??
                   (DBKeys.flashDuration.initial as int),
               min: 1,
               max: 15,
@@ -161,7 +166,8 @@ class ReaderSettingsScreen extends ConsumerWidget {
             ),
             _IntSliderTile(
               title: context.l10n.flashEvery,
-              value: ref.watch(flashPageIntervalProvider) ??
+              value:
+                  ref.watch(flashPageIntervalProvider) ??
                   (DBKeys.flashPageInterval.initial as int),
               min: 1,
               max: 10,
@@ -171,7 +177,8 @@ class ReaderSettingsScreen extends ConsumerWidget {
             _EnumChips<FlashColor>(
               label: context.l10n.flashWith,
               values: FlashColor.values,
-              selected: enumOf(flashColorKeyProvider) ?? FlashColor.values.first,
+              selected:
+                  enumOf(flashColorKeyProvider) ?? FlashColor.values.first,
               labelOf: (v) => v.toLocale(context),
               onSelected: setEnum(flashColorKeyProvider.notifier),
             ),
@@ -182,8 +189,9 @@ class ReaderSettingsScreen extends ConsumerWidget {
           _BoolTile(
             title: context.l10n.alwaysShowChapterTransition,
             value: ref.watch(alwaysShowChapterTransitionProvider).ifNull(true),
-            onChanged:
-                ref.read(alwaysShowChapterTransitionProvider.notifier).update,
+            onChanged: ref
+                .read(alwaysShowChapterTransitionProvider.notifier)
+                .update,
           ),
           const SwipeChapterToggleTile(),
           const ReaderLastPageSwipeTile(),
@@ -295,24 +303,28 @@ class ReaderSettingsScreen extends ConsumerWidget {
             label: context.l10n.webtoonScaleType,
             values: WebtoonScaleType.values,
             selected:
-                enumOf(webtoonScaleTypeKeyProvider) ?? WebtoonScaleType.fitScreen,
+                enumOf(webtoonScaleTypeKeyProvider) ??
+                WebtoonScaleType.fitScreen,
             labelOf: (v) => v.toLocale(context),
             onSelected: setEnum(webtoonScaleTypeKeyProvider.notifier),
           ),
           // Greyed under Original size: native-size pages never widen, so a
           // width cap has nothing to do.
           LongStripWidthLimitSlider(
-            enabled: (enumOf(webtoonScaleTypeKeyProvider) ??
+            enabled:
+                (enumOf(webtoonScaleTypeKeyProvider) ??
                     WebtoonScaleType.fitScreen) !=
                 WebtoonScaleType.originalSize,
-            usePixels:
-                ref.watch(longStripWidthLimitUsePixelsProvider).ifNull(),
-            percent: ref.watch(longStripWidthLimitPercentProvider) ??
+            usePixels: ref.watch(longStripWidthLimitUsePixelsProvider).ifNull(),
+            percent:
+                ref.watch(longStripWidthLimitPercentProvider) ??
                 DBKeys.longStripWidthLimitPercent.initial as int,
-            px: ref.watch(longStripWidthLimitPxProvider) ??
+            px:
+                ref.watch(longStripWidthLimitPxProvider) ??
                 DBKeys.longStripWidthLimitPx.initial as int,
-            onUnitChanged:
-                ref.read(longStripWidthLimitUsePixelsProvider.notifier).update,
+            onUnitChanged: ref
+                .read(longStripWidthLimitUsePixelsProvider.notifier)
+                .update,
             // Clamped like the model setters, so every write path guards.
             onPercentCommitted: (v) => ref
                 .read(longStripWidthLimitPercentProvider.notifier)
@@ -329,8 +341,9 @@ class ReaderSettingsScreen extends ConsumerWidget {
           _BoolTile(
             title: context.l10n.doubleTapToZoom,
             value: ref.watch(longStripDoubleTapToZoomProvider).ifNull(true),
-            onChanged:
-                ref.read(longStripDoubleTapToZoomProvider.notifier).update,
+            onChanged: ref
+                .read(longStripDoubleTapToZoomProvider.notifier)
+                .update,
           ),
           _BoolTile(
             title: context.l10n.pinchToZoom,
@@ -340,8 +353,9 @@ class ReaderSettingsScreen extends ConsumerWidget {
           _BoolTile(
             title: context.l10n.disableZoomOut,
             value: ref.watch(longStripDisableZoomOutProvider).ifNull(false),
-            onChanged:
-                ref.read(longStripDisableZoomOutProvider.notifier).update,
+            onChanged: ref
+                .read(longStripDisableZoomOutProvider.notifier)
+                .update,
           ),
 
           // ── Navigation ──
@@ -410,8 +424,9 @@ class _BoolTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SwitchListTile(
       controlAffinity: ListTileControlAffinity.trailing,
-      contentPadding:
-          indent ? const EdgeInsetsDirectional.only(start: 32, end: 16) : null,
+      contentPadding: indent
+          ? const EdgeInsetsDirectional.only(start: 32, end: 16)
+          : null,
       title: Text(title),
       value: value,
       onChanged: onChanged,

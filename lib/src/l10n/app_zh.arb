@@ -3897,5 +3897,8 @@
   "pageTransitionFast": "快",
   "pageTransitionNormal": "正常",
   "pageTransitionSlow": "慢",
-  "pageTransitionSlowest": "很慢"
+  "pageTransitionSlowest": "很慢",
+  "readerTapMute": "滑动后点击延迟",
+  "readerTapMuteDescription": "条漫模式下滚动后多久内忽略单击。设为 0 即关闭。",
+  "readerTapMuteOff": "关闭"
 }

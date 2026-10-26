@@ -4124,5 +4124,8 @@
   "pageTransitionFast": "Fast",
   "pageTransitionNormal": "Normal",
   "pageTransitionSlow": "Slow",
-  "pageTransitionSlowest": "Slowest"
+  "pageTransitionSlowest": "Slowest",
+  "readerTapMute": "Tap delay after scrolling",
+  "readerTapMuteDescription": "How long a tap is ignored after you scroll in webtoon mode. 0 turns it off.",
+  "readerTapMuteOff": "Off"
 }

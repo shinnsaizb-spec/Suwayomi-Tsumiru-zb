@@ -39,6 +39,7 @@ import '../../../domain/manga/manga_model.dart';
 import '../../manga_details/controller/manga_details_controller.dart';
 import '../controller/auto_scroll_controller.dart';
 import '../controller/reader_controller.dart';
+import '../controller/reader_tap_mute.dart';
 import '../utils/last_page_swipe_utils.dart';
 import '../utils/reader_mode_kind.dart';
 import 'chrome/reader_chrome.dart';
@@ -1176,26 +1177,38 @@ class ReaderView extends HookConsumerWidget {
 
     // A tap that lands during — or right after — a scroll is almost always the
     // finger settling on a coasting list, not an intentional tap on the page.
-    // Refuse those for a short window instead of toggling the chrome mid-scroll.
+    // Refuse those for a user-tuned window instead of toggling the chrome
+    // mid-scroll.
     //
     // Vertical modes only: in the paged modes a horizontal swipe is a page turn
     // and tapping right after it is normal, so muting there would just make the
     // reader feel unresponsive.
     final muteTapsAfterScroll = scrollDirection == Axis.vertical;
+    final tapMuteWindow = ref.watch(readerTapMuteAfterScrollProvider);
     void guardedToggleVisibility() {
-      if (muteTapsAfterScroll) {
+      if (muteTapsAfterScroll && tapMuteWindow > Duration.zero) {
         final lastScroll = ref.read(readerLastScrollAtProvider);
         if (lastScroll != null &&
-            DateTime.now().difference(lastScroll) <
-                kReaderTapAfterScrollWindow) {
+            DateTime.now().difference(lastScroll) < tapMuteWindow) {
           return;
         }
       }
       toggleVisibility();
     }
 
+    // Scrolling up and down *is* the navigation in the vertical modes, so the
+    // next/previous tap zones have nothing to do there — a tap near the bottom
+    // edge used to jump the strip forward instead of opening the menu, which
+    // made the reader feel like taps were being eaten. Every tap is a menu tap
+    // in those modes.
+    final tapNavigationLayout =
+        scrollDirection == Axis.vertical &&
+            resolvedNavigationLayout != ReaderNavigationLayout.disabled
+        ? ReaderNavigationLayout.defaultNavigation
+        : resolvedNavigationLayout;
+
     if (childHandlesGestures) {
-      final layout = resolvedNavigationLayout;
+      final layout = tapNavigationLayout;
       final tapInvert = resolvedTapInvert;
       final smallerTapZones = ref.watch(smallerTapZonesProvider) ?? false;
       content = ReaderInputScope(
@@ -1277,7 +1290,7 @@ class ReaderView extends HookConsumerWidget {
           child: ReaderNavigationLayoutWidget(
             onNext: onNext,
             onPrevious: onPrevious,
-            navigationLayout: resolvedNavigationLayout,
+            navigationLayout: tapNavigationLayout,
             tapInvert: resolvedTapInvert,
             showReaderLayoutAnimation: showZonesOnOpen,
           ),

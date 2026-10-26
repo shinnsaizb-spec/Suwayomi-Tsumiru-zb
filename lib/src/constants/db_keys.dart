@@ -361,6 +361,10 @@ enum DBKeys {
   // next to the shared-element flights.
   pageTransitionSpeed(2),
 
+  // How long a tap stays ignored after a scroll in the vertical reader modes,
+  // in milliseconds (0-2000). 0 disables the mute entirely.
+  readerTapMuteAfterScrollMs(2000),
+
   // How often the library's connection probe retries while the server is
   // unreachable, in seconds. 0 (the default) means it does not retry on its
   // own: the user taps the connection icon to try again.
