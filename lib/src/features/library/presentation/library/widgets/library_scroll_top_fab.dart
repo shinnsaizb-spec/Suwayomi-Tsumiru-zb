@@ -35,6 +35,16 @@ class LibraryScrollTopFab extends StatefulWidget {
 class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
   bool _visible = false;
 
+  /// The controller the shelf's own lists attach to.
+  ///
+  /// The category / grouped lists are plain `CustomScrollView`s with no
+  /// controller, so they all use the ambient `PrimaryScrollController`. Owning
+  /// it here is what makes "back to top" act on the tab that is actually on
+  /// screen: the notifications alone could only describe whichever scrollable
+  /// happened to report, and on a `TabBarView` that was not always the visible
+  /// one — pressing the button scrolled a background tab instead.
+  final ScrollController _controller = ScrollController();
+
   /// Every scroll position the shelf has reported, plus the outer position of
   /// the surrounding `NestedScrollView` when there is one.
   ///
@@ -68,12 +78,19 @@ class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
     return false;
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void _backToTop() {
-    // Drive every position that is actually scrolled: in the nested layout that
-    // is the inner list *and* the outer view that owns the collapsing header;
-    // in the plain layouts it is just the list. Positions belonging to a
-    // background tab sit at zero and are skipped.
-    for (final position in _positions.toList()) {
+    // Drive every position that is actually scrolled: the controller's own
+    // (the visible list, plus any kept-alive tab) and whatever the nested
+    // layout reported. Positions at zero are skipped, so a tab the user has
+    // never scrolled is left alone.
+    final targets = <ScrollPosition>{..._controller.positions, ..._positions};
+    for (final position in targets) {
       if (!position.hasPixels || position.pixels <= 0) continue;
       position.animateTo(
         0,
@@ -86,35 +103,38 @@ class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
   @override
   Widget build(BuildContext context) {
     final reduceMotion = context.reduceMotion;
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScroll,
-      child: Stack(
-        children: [
-          widget.child,
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: AnimatedScale(
-              scale: _visible ? 1 : 0,
-              duration: reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 160),
-              curve: Curves.easeOut,
-              child: _visible
-                  ? ReadFabHero(
-                      child: FloatingActionButton.small(
-                        // Our own Hero wraps this one; the FAB's built-in hero
-                        // would nest inside it and trip the duplicate-tag
-                        // assertion.
-                        heroTag: null,
-                        onPressed: _backToTop,
-                        child: const Icon(Icons.vertical_align_top_rounded),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
+    return PrimaryScrollController(
+      controller: _controller,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: Stack(
+          children: [
+            widget.child,
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: AnimatedScale(
+                scale: _visible ? 1 : 0,
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 160),
+                curve: Curves.easeOut,
+                child: _visible
+                    ? ReadFabHero(
+                        child: FloatingActionButton.small(
+                          // Our own Hero wraps this one; the FAB's built-in hero
+                          // would nest inside it and trip the duplicate-tag
+                          // assertion.
+                          heroTag: null,
+                          onPressed: _backToTop,
+                          child: const Icon(Icons.vertical_align_top_rounded),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
