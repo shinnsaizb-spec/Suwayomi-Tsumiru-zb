@@ -75,7 +75,7 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
     // vertical mode, don't register them at all here, leaving ZoomView's scale
     // recognizer the sole single-finger owner. Horizontal/paged modes keep them.
     if (scrollDirection == Axis.vertical) {
-      return _wrapWithTapAndLongPress(child);
+      return _wrapWithTapAndLongPress(child, ref);
     }
     // Horizontal continuous mode has the same conflict while the reader is
     // zoomed in: a single-finger drag then means "pan around the zoomed
@@ -93,8 +93,8 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
     final bool useAdvancedGestures =
         lastPageSwipeEnabled && !readerSwipeChapterToggle;
     return useAdvancedGestures
-        ? _buildBoundarySwipeHandler(context, isZoomedIn)
-        : _buildChapterSwipeHandler(context, isZoomedIn);
+        ? _buildBoundarySwipeHandler(context, ref, isZoomedIn)
+        : _buildChapterSwipeHandler(context, ref, isZoomedIn);
   }
 
   /// Tap + long-press wrapper shared by every mode. These don't fight
@@ -105,16 +105,22 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
   /// own recognizer, so a drag that only moves the finger a little never makes
   /// the tap recognizer lose the arena — scrolling then toggled the chrome.
   /// The gate only reports a tap when the finger barely moved.
-  Widget _wrapWithTapAndLongPress(Widget child) {
+  Widget _wrapWithTapAndLongPress(Widget child, WidgetRef ref) {
     return _TapGate(
       onTap: onTap,
       onLongPressStart: onLongPressStart,
+      // Not every vertical mode reports scroll through a Scrollable, so the
+      // gate also marks a drag itself — the tap handler then stays quiet for
+      // [kReaderTapAfterScrollWindow] afterwards.
+      onDragDetected: () =>
+          ref.read(readerLastScrollAtProvider.notifier).state = DateTime.now(),
       child: child,
     );
   }
 
   Widget _buildBoundarySwipeHandler(
     BuildContext context,
+    WidgetRef ref,
     bool Function() isZoomedIn,
   ) {
     return RawGestureDetector(
@@ -143,12 +149,13 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
               },
             ),
       },
-      child: _wrapWithTapAndLongPress(child),
+      child: _wrapWithTapAndLongPress(child, ref),
     );
   }
 
   Widget _buildChapterSwipeHandler(
     BuildContext context,
+    WidgetRef ref,
     bool Function() isZoomedIn,
   ) {
     return RawGestureDetector(
@@ -193,7 +200,7 @@ class DirectionalSwipeGestureHandler extends HookConsumerWidget {
               },
             ),
       },
-      child: _wrapWithTapAndLongPress(child),
+      child: _wrapWithTapAndLongPress(child, ref),
     );
   }
 
@@ -442,10 +449,14 @@ class _TapGate extends StatefulWidget {
     required this.onTap,
     required this.onLongPressStart,
     required this.child,
+    this.onDragDetected,
   });
 
   final VoidCallback onTap;
   final void Function(LongPressStartDetails)? onLongPressStart;
+
+  /// Called once per gesture, the moment the finger travels past the tap slop.
+  final VoidCallback? onDragDetected;
   final Widget child;
 
   @override
@@ -483,7 +494,10 @@ class _TapGateState extends State<_TapGate> {
       onPointerMove: (event) {
         final down = _downPosition;
         if (down == null || _moved) return;
-        if ((event.position - down).distance > _kTapMoveSlop) _moved = true;
+        if ((event.position - down).distance > _kTapMoveSlop) {
+          _moved = true;
+          widget.onDragDetected?.call();
+        }
       },
       onPointerUp: (_) {
         _pointers = _pointers > 0 ? _pointers - 1 : 0;

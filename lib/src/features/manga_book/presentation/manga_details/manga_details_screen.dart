@@ -24,7 +24,6 @@ import '../../../library/presentation/library/controller/library_manga_list.dart
 import '../../../migration/domain/migration_models.dart';
 import '../../../offline/data/server_reachability.dart';
 import '../../../offline/presentation/server_unreachable_banner.dart';
-import '../../../settings/presentation/appearance/widgets/show_recommendations/show_recommendations_tile.dart';
 import '../../domain/chapter/chapter_model.dart';
 import '../../domain/manga/manga_model.dart';
 import '../../widgets/chapter_actions/multi_chapters_actions_bottom_app_bar.dart';
@@ -34,6 +33,7 @@ import 'widgets/big_screen_manga_details.dart';
 import 'widgets/chapter_download_presets_button.dart';
 import 'widgets/edit_manga_category_dialog.dart';
 import 'widgets/manga_chapter_organizer.dart';
+import 'widgets/manga_details_skeleton.dart';
 import 'widgets/small_screen_manga_details.dart';
 
 class MangaDetailsScreen extends HookConsumerWidget {
@@ -183,6 +183,10 @@ class MangaDetailsScreen extends HookConsumerWidget {
       },
       child: manga.showUiWhenData(
         context,
+        // Frame first, content after: the skeleton carries the cover Hero so
+        // the tile → page transition has a destination from the very first
+        // visit, instead of only working once the query had been cached.
+        loadingWidget: MangaDetailsSkeleton(mangaId: mangaId),
         (data) => Scaffold(
           // Immersive hero: the blurred cover backdrop (top of the body) shows
           // through behind a transparent app bar. Given up while the banner is

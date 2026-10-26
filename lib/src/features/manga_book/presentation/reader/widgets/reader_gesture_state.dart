@@ -28,3 +28,16 @@ final readerTapArrestsFlingProvider = StateProvider<bool>((ref) => false);
 /// mode — see the recognizers' `isZoomedIn` callback in
 /// `single_touch_drag_recognizers.dart`.
 final readerIsZoomedInProvider = StateProvider<bool>((ref) => false);
+
+/// How long a tap stays ignored after the reader last scrolled.
+///
+/// A webtoon fling keeps the list moving after the finger lifts, and the next
+/// touch frequently lands while it is still coasting — a short drag of a few
+/// pixels then reads as a tap and toggles the chrome. A movement threshold
+/// alone does not catch it (the fling is already underway), so the tap handler
+/// also refuses for this window after any scroll motion.
+const kReaderTapAfterScrollWindow = Duration(seconds: 2);
+
+/// Wall-clock time of the last scroll motion in the reader. Written by the
+/// scroll notification listener and by the tap gate when it sees a drag.
+final readerLastScrollAtProvider = StateProvider<DateTime?>((ref) => null);

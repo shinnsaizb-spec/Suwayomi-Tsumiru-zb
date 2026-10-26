@@ -1174,13 +1174,25 @@ class ReaderView extends HookConsumerWidget {
       seriesOverride: mangaTapInvert,
     );
 
+    // A tap that lands during — or right after — a scroll is almost always the
+    // finger settling on a coasting list, not an intentional tap on the page.
+    // Refuse those for a short window instead of toggling the chrome mid-scroll.
+    void guardedToggleVisibility() {
+      final lastScroll = ref.read(readerLastScrollAtProvider);
+      if (lastScroll != null &&
+          DateTime.now().difference(lastScroll) < kReaderTapAfterScrollWindow) {
+        return;
+      }
+      toggleVisibility();
+    }
+
     if (childHandlesGestures) {
       final layout = resolvedNavigationLayout;
       final tapInvert = resolvedTapInvert;
       final smallerTapZones = ref.watch(smallerTapZonesProvider) ?? false;
       content = ReaderInputScope(
         callbacks: ReaderInputCallbacks(
-          onTap: toggleVisibility,
+          onTap: guardedToggleVisibility,
           // Off means nobody wants the gesture, so it is never claimed.
           onLongPressStart: readWithLongTap ? handleLongPressStart : null,
           onLongPressCancel: readWithLongTap ? handleLongPressCancel : null,
@@ -1201,7 +1213,7 @@ class ReaderView extends HookConsumerWidget {
         onNextChapterCommand: onNextChapterCommand,
         onPreviousChapterCommand: onPreviousChapterCommand,
         readerScanlatorGroup: readerScanlatorGroup,
-        onTap: toggleVisibility,
+        onTap: guardedToggleVisibility,
         // Null when nothing consumes it, so the recognizer is never registered
         // and a slow tap isn't lost to the long-press arena.
         onLongPressStart: readWithLongTap
@@ -1224,7 +1236,19 @@ class ReaderView extends HookConsumerWidget {
 
     return Stack(
       children: [
-        content,
+        // Record every scroll motion so the tap handler can refuse taps that
+        // arrive while the page is (or was just) moving.
+        NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification ||
+                notification is ScrollUpdateNotification) {
+              ref.read(readerLastScrollAtProvider.notifier).state =
+                  DateTime.now();
+            }
+            return false;
+          },
+          child: content,
+        ),
         // Paged routes taps through ReaderInputScope, so this overlay is
         // display-only there.
         IgnorePointer(
