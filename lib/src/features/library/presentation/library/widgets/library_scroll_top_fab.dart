@@ -85,25 +85,29 @@ class _LibraryScrollTopFabState extends State<LibraryScrollTopFab> {
   }
 
   void _backToTop() {
-    // Drive every position that is actually scrolled: the controller's own
-    // (the visible list, plus any kept-alive tab) and whatever the nested
-    // layout reported. Positions at zero are skipped, so a tab the user has
-    // never scrolled is left alone.
-    final targets = <ScrollPosition>{..._controller.positions, ..._positions};
-    // TEMPORARY DIAGNOSTIC — remove once back-to-top is confirmed working.
-    debugPrint(
-      '[backToTop] own=${_controller.positions.length} '
-      'reported=${_positions.length} '
-      'ownPixels=${_controller.positions.map((p) => p.pixels.round()).toList()} '
-      'reportedPixels=${_positions.map((p) => p.pixels.round()).toList()}',
-    );
+    // Prefer the controller's own positions: those are the lists that are
+    // mounted right now, which is what the user is looking at.
+    //
+    // The ones collected from notifications must not be driven alongside them.
+    // A `TabBarView` keeps positions around after their tab is disposed, and
+    // `animateTo` on one of those throws (a disposed position has no context to
+    // create its ticker from) — the throw aborted this loop before the visible
+    // list was reached, which is why the button appeared to do nothing while a
+    // background tab jumped. They stay only as the fallback for the nested
+    // layout, where the lists attach to their own controller instead.
+    final own = _controller.positions.toList();
+    final targets = own.isNotEmpty ? own : _positions.toList();
     for (final position in targets) {
       if (!position.hasPixels || position.pixels <= 0) continue;
-      position.animateTo(
-        0,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
+      try {
+        position.animateTo(
+          0,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+        );
+      } catch (_) {
+        // A position whose scrollable is gone; nothing to scroll.
+      }
     }
   }
 
