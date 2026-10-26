@@ -108,9 +108,7 @@ class LibraryDuplicatesScreen extends HookConsumerWidget {
       final message = removed.length < ids.length
           ? context.l10n.duplicatesRemovedPartial(removed.length, ids.length)
           : context.l10n.duplicatesRemoved(removed.length);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
         snackBarAnimationStyle: context.snackBarMotionStyle,
       );
@@ -393,6 +391,9 @@ class _MemberCard extends StatelessWidget {
             height: mangaCoverBoxHeight(_kCardWidth),
             child: MangaCoverGridTile(
               manga: manga,
+              // The same series shows up more than once here by definition, and
+              // Hero asserts on duplicate tags within one route.
+              enableHero: false,
               selected: selected,
               // While selecting, a tap toggles the cover instead of opening it.
               onPressed: selecting

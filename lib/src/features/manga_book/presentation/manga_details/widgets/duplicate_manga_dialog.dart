@@ -240,6 +240,8 @@ class _DuplicateCard extends StatelessWidget {
               children: [
                 MangaCoverGridTile(
                   manga: duplicate,
+                  // A duplicate dialog can list the same series twice.
+                  enableHero: false,
                   showBadges: false,
                   showTitle: false,
                   showDarkOverlay: false,
