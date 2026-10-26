@@ -41,6 +41,9 @@ class MangaDetailsSkeleton extends ConsumerWidget {
 
   final int mangaId;
 
+  /// TEMPORARY DIAGNOSTIC — removed once the frame's top offset matches.
+  static bool _logged = false;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cached = _cachedManga(ref);
@@ -58,6 +61,20 @@ class MangaDetailsSkeleton extends ConsumerWidget {
             borderRadius: BorderRadius.circular(6),
           ),
         );
+
+    // TEMPORARY DIAGNOSTIC
+    if (!_logged) {
+      _logged = true;
+      final mq = MediaQuery.paddingOf(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final box = context.findRenderObject();
+        debugPrint(
+          '[frame] mqTop=${mq.top} viewInsets=${mq.bottom} '
+          'extend=${!ref.read(serverUnreachableProvider)} '
+          'screenDy=${box is RenderBox && box.attached ? box.localToGlobal(Offset.zero).dy : -1}',
+        );
+      });
+    }
 
     return Scaffold(
       // Same expression the loaded page uses (`selectedChapters` is empty while
