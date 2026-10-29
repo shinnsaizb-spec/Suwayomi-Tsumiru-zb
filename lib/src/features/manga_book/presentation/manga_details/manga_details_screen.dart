@@ -37,8 +37,32 @@ import 'widgets/manga_chapter_organizer.dart';
 import 'widgets/manga_details_skeleton.dart';
 import 'widgets/small_screen_manga_details.dart';
 
-class MangaDetailsScreen extends HookConsumerWidget {
+/// The series page.
+///
+/// Nothing here touches the server on mount. The frame is shown for the length
+/// of the push transition, and the real page — with every provider it needs —
+/// is built only after that animation reports completed. Loading during the
+/// slide put a JSON parse and a full subtree build on the UI thread in the same
+/// frames the transition was using, which is what the occasional hitch was.
+class MangaDetailsScreen extends ConsumerWidget {
   const MangaDetailsScreen({super.key, required this.mangaId, this.categoryId});
+
+  final int mangaId;
+  final int? categoryId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _DetailsContentGate(
+    skeleton: () => MangaDetailsSkeleton(mangaId: mangaId),
+    content: () =>
+        _MangaDetailsContent(mangaId: mangaId, categoryId: categoryId),
+  );
+}
+
+/// The page itself. Built only once the push transition has settled — see
+/// [MangaDetailsScreen] — so that the providers it subscribes to do not start
+/// fetching (and parsing, and notifying) while the page is still sliding.
+class _MangaDetailsContent extends HookConsumerWidget {
+  const _MangaDetailsContent({required this.mangaId, this.categoryId});
   final int mangaId;
   final int? categoryId;
   @override
@@ -182,347 +206,331 @@ class MangaDetailsScreen extends HookConsumerWidget {
           });
         }
       },
-      // Frame first, content after — and *outside* showUiWhenData, whose
-      // `wrapper` puts the loading state in a Scaffold with a "Manga" title
-      // bar. That extra bar was the stray one appearing over the frame.
-      //
-      // The gate holds the frame until the push transition has settled when the
-      // data lands mid-flight. Swapping the whole subtree in the middle of the
-      // slide was the frame that kept showing up red on the UI thread.
-      child: _DetailsContentGate(
-        hasData: manga.hasValue || manga.hasError,
-        skeleton: () => MangaDetailsSkeleton(mangaId: mangaId),
-        content: () => manga.showUiWhenData(
-          context,
-          (data) => Scaffold(
-            // Immersive hero: the blurred cover backdrop (top of the body) shows
-            // through behind a transparent app bar. Given up while the banner is
-            // in the way, so the cover starts below it rather than behind it.
-            extendBodyBehindAppBar: selectedChapters.value.isEmpty && !offline,
-            appBar: selectedChapters.value.isNotEmpty
-                ? AppBar(
-                    leading: IconButton(
-                      onPressed: () => selectedChapters.value = ({}),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                    title: Text(
-                      context.l10n.numSelected(selectedChapters.value.length),
-                    ),
-                    actions: [
-                      IconButton(
-                        onPressed: () {
-                          final chapterList = [...?filteredChapterList.value];
-                          selectedChapters.value = ({
-                            for (ChapterDto i in chapterList) i.id: i,
-                          });
-                        },
-                        icon: const Icon(Icons.select_all_rounded),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          final chapterList = [...?filteredChapterList.value];
-                          selectedChapters.value = ({
-                            for (ChapterDto i in chapterList)
-                              if (!selectedChapters.value.containsKey(i.id))
-                                i.id: i,
-                          });
-                        },
-                        icon: const Icon(Icons.flip_to_back_rounded),
-                      ),
-                      MultiSelectPopupButton(
-                        filteredChapterList: filteredChapterList,
-                        selectedChapters: selectedChapters,
-                      ),
-                    ],
-                  )
-                : PreferredSize(
-                    preferredSize: const Size.fromHeight(kToolbarHeight),
-                    child: ValueListenableBuilder<double>(
-                      valueListenable: scrollPx,
-                      builder: (context, px, _) {
-                        final t = (px / 160).clamp(0.0, 1.0);
-                        return AppBar(
-                          // Explicit back button: wrapping the AppBar in a
-                          // builder defeats automaticallyImplyLeading.
-                          leading: Navigator.of(context).canPop()
-                              ? const BackButton()
-                              : null,
-                          backgroundColor: Color.lerp(
-                            Colors.transparent,
-                            surface,
-                            t,
-                          ),
-                          elevation: 0,
-                          scrolledUnderElevation: 0,
-                          // Scrim under the icons while the bar is transparent
-                          // (hero showing); fades out as the bar turns opaque.
-                          flexibleSpace: t >= 1
-                              ? null
-                              : DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.black.withValues(
-                                          alpha: 0.45 * (1 - t),
-                                        ),
-                                        Colors.transparent,
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                          // Title lives in the hero at the top; fade it into the
-                          // bar only once collapsed (avoids a duplicate title).
-                          title: Opacity(
-                            opacity: t,
-                            child: Text(data?.title ?? context.l10n.manga),
-                          ),
-                          actions: [
-                            if (context.isTablet) ...[
-                              IconButton(
-                                onPressed: () => refresh(true),
-                                icon: const Icon(Icons.refresh_rounded),
-                              ),
-                              IconButton(
-                                onPressed: () => showDialog(
-                                  context: context,
-                                  builder: (context) =>
-                                      EditMangaCategoryDialog(mangaId: mangaId),
-                                  animationStyle: context.motionStyle,
-                                ),
-                                icon: const Icon(Icons.category_rounded),
-                              ),
-                              IconButton(
-                                onPressed: () =>
-                                    startMigration(context, mangaId, data),
-                                icon: const Icon(Icons.swap_horiz_rounded),
-                                tooltip: context.l10n.migrate,
-                              ),
-                              PopupMenuButton<void>(
-                                icon: const Icon(Icons.open_in_new_rounded),
-                                tooltip: context.l10n.openInWeb,
-                                itemBuilder: (context) => [
-                                  if (data?.realUrl != null)
-                                    PopupMenuItem(
-                                      onTap: () =>
-                                          openInBrowser(data!.realUrl!),
-                                      child: Text(
-                                        context.l10n.openSourceInBrowser,
-                                      ),
-                                    ),
-                                  PopupMenuItem(
-                                    onTap: openOnServer,
-                                    child: Text(context.l10n.openOnServer),
-                                  ),
-                                ],
-                                popUpAnimationStyle: context.motionStyle,
-                              ),
-                            ],
-                            // Local-source files already live on the server, so
-                            // "Download to server" is meaningless there — same
-                            // gate Komikku applies to local/stub sources.
-                            if (!(data?.isLocalSource).ifNull())
-                              ChapterDownloadPresetsButton(
-                                chapterList: bulkActionsChapterList,
-                                refresh: refresh,
-                              ),
-                            Builder(
-                              builder: (context) => IconButton(
-                                onPressed: () {
-                                  if (context.isTablet) {
-                                    Scaffold.of(context).openEndDrawer();
-                                  } else {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: KBorderRadius.rT16.radius,
-                                      ),
-                                      clipBehavior: Clip.hardEdge,
-                                      builder: (_) => MangaChapterOrganizer(
-                                        mangaId: mangaId,
-                                      ),
-                                      sheetAnimationStyle: context.motionStyle,
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.filter_list_rounded),
-                              ),
-                            ),
-                            if (!context.isTablet)
-                              PopupMenuButton(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: KBorderRadius.r16.radius,
-                                ),
-                                icon: const Icon(Icons.more_vert_rounded),
-                                itemBuilder: (context) => [
-                                  PopupMenuItem(
-                                    onTap: () => Future.microtask(() {
-                                      if (!context.mounted) return null;
-                                      return showDialog(
-                                        context: context,
-                                        builder: (context) =>
-                                            EditMangaCategoryDialog(
-                                              mangaId: mangaId,
-                                            ),
-                                        animationStyle: context.motionStyle,
-                                      );
-                                    }),
-                                    child: Text(context.l10n.editCategory),
-                                  ),
-                                  PopupMenuItem(
-                                    onTap: () =>
-                                        startMigration(context, mangaId, data),
-                                    child: Text(context.l10n.migrate),
-                                  ),
-                                  PopupMenuItem(
-                                    onTap: () => refresh(true),
-                                    child: Text(context.l10n.refresh),
-                                  ),
-                                  if (data?.realUrl != null)
-                                    PopupMenuItem(
-                                      onTap: () =>
-                                          openInBrowser(data!.realUrl!),
-                                      child: Text(
-                                        context.l10n.openSourceInBrowser,
-                                      ),
-                                    ),
-                                  PopupMenuItem(
-                                    onTap: openOnServer,
-                                    child: Text(context.l10n.openOnServer),
-                                  ),
-                                ],
-                                popUpAnimationStyle: context.motionStyle,
-                              ),
-                          ],
-                        );
+      // Kept *outside* showUiWhenData: its `wrapper` puts the loading state in
+      // a Scaffold with a "Manga" title bar, which was the stray bar that
+      // appeared over the frame.
+      child: manga.showUiWhenData(
+        context,
+        (data) => Scaffold(
+          // Immersive hero: the blurred cover backdrop (top of the body) shows
+          // through behind a transparent app bar. Given up while the banner is
+          // in the way, so the cover starts below it rather than behind it.
+          extendBodyBehindAppBar: selectedChapters.value.isEmpty && !offline,
+          appBar: selectedChapters.value.isNotEmpty
+              ? AppBar(
+                  leading: IconButton(
+                    onPressed: () => selectedChapters.value = ({}),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                  title: Text(
+                    context.l10n.numSelected(selectedChapters.value.length),
+                  ),
+                  actions: [
+                    IconButton(
+                      onPressed: () {
+                        final chapterList = [...?filteredChapterList.value];
+                        selectedChapters.value = ({
+                          for (ChapterDto i in chapterList) i.id: i,
+                        });
                       },
+                      icon: const Icon(Icons.select_all_rounded),
                     ),
-                  ),
-            // Edge-drag would open this on phones, where the organizer is a
-            // bottom sheet instead — and it eats the system back gesture.
-            endDrawerEnableOpenDragGesture: false,
-            endDrawer: Drawer(
-              shape: const RoundedRectangleBorder(),
-              width: kDrawerWidth,
-              child: MangaChapterOrganizer(mangaId: mangaId),
-            ),
-            // Always present while nothing is selected, even when there is no
-            // chapter to open yet: the shelf's back-to-top button morphs into this
-            // one, and a Hero that comes and goes makes the transition jump.
-            floatingActionButton: selectedChapters.value.isEmpty
-                ? ReadFabHero(
-                    child: BrandFab(
-                      label: Text(
-                        data?.lastReadChapter?.hasReadingProgress == true
-                            ? context.l10n.resume
-                            : context.l10n.start,
-                      ),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      onPressed: firstUnreadChapter == null
-                          ? null
-                          : () {
-                              final chapter = firstUnreadChapter;
-                              ReaderRoute(
-                                mangaId: chapter.mangaId,
-                                chapterId: chapter.id,
-                                showReaderLayoutAnimation: true,
-                              ).push(context);
-                            },
+                    IconButton(
+                      onPressed: () {
+                        final chapterList = [...?filteredChapterList.value];
+                        selectedChapters.value = ({
+                          for (ChapterDto i in chapterList)
+                            if (!selectedChapters.value.containsKey(i.id))
+                              i.id: i,
+                        });
+                      },
+                      icon: const Icon(Icons.flip_to_back_rounded),
                     ),
-                  )
-                : null,
-            // Banner above the content, not over it: the hero owns the whole top
-            // of this screen and a floating banner cuts the cover in half.
-            // Its own layer so the push/pop slide translates this raster
-            // instead of repainting the whole page every frame.
-            body: RepaintBoundary(
-              child: Column(
-                children: [
-                  ServerUnreachableBanner(onRetry: refresh),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        NotificationListener<ScrollNotification>(
-                          onNotification: (n) {
-                            if (n.metrics.axis == Axis.vertical) {
-                              scrollPx.value = n.metrics.pixels;
-                            }
-                            return false;
-                          },
-                          child: data != null
-                              ? context.isTablet
-                                    ? BigScreenMangaDetails(
-                                        chapterList: chapterListEntries,
-                                        manga: data,
-                                        mangaId: mangaId,
-                                        onRefresh: refresh,
-                                        onDescriptionRefresh: mangaRefresh,
-                                        onListRefresh: chapterListRefresh,
-                                        selectedChapters: selectedChapters,
-                                      )
-                                    : SmallScreenMangaDetails(
-                                        chapterList: chapterListEntries,
-                                        manga: data,
-                                        mangaId: mangaId,
-                                        onRefresh: refresh,
-                                        onDescriptionRefresh: mangaRefresh,
-                                        onListRefresh: chapterListRefresh,
-                                        selectedChapters: selectedChapters,
-                                      )
-                              : Emoticons(
-                                  title: context.l10n.noMangaFound,
-                                  button: TextButton(
-                                    onPressed: refresh,
-                                    child: Text(context.l10n.refresh),
+                    MultiSelectPopupButton(
+                      filteredChapterList: filteredChapterList,
+                      selectedChapters: selectedChapters,
+                    ),
+                  ],
+                )
+              : PreferredSize(
+                  preferredSize: const Size.fromHeight(kToolbarHeight),
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: scrollPx,
+                    builder: (context, px, _) {
+                      final t = (px / 160).clamp(0.0, 1.0);
+                      return AppBar(
+                        // Explicit back button: wrapping the AppBar in a
+                        // builder defeats automaticallyImplyLeading.
+                        leading: Navigator.of(context).canPop()
+                            ? const BackButton()
+                            : null,
+                        backgroundColor: Color.lerp(
+                          Colors.transparent,
+                          surface,
+                          t,
+                        ),
+                        elevation: 0,
+                        scrolledUnderElevation: 0,
+                        // Scrim under the icons while the bar is transparent
+                        // (hero showing); fades out as the bar turns opaque.
+                        flexibleSpace: t >= 1
+                            ? null
+                            : DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.black.withValues(
+                                        alpha: 0.45 * (1 - t),
+                                      ),
+                                      Colors.transparent,
+                                    ],
                                   ),
                                 ),
+                              ),
+                        // Title lives in the hero at the top; fade it into the
+                        // bar only once collapsed (avoids a duplicate title).
+                        title: Opacity(
+                          opacity: t,
+                          child: Text(data?.title ?? context.l10n.manga),
                         ),
-                        if (selectedChapters.value.isNotEmpty)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: MultiChaptersActionsBottomAppBar(
-                              afterOptionSelected: chapterListRefresh,
-                              selectedChapters: selectedChapters,
-                              chapterList: filteredChapterList.value,
+                        actions: [
+                          if (context.isTablet) ...[
+                            IconButton(
+                              onPressed: () => refresh(true),
+                              icon: const Icon(Icons.refresh_rounded),
+                            ),
+                            IconButton(
+                              onPressed: () => showDialog(
+                                context: context,
+                                builder: (context) =>
+                                    EditMangaCategoryDialog(mangaId: mangaId),
+                                animationStyle: context.motionStyle,
+                              ),
+                              icon: const Icon(Icons.category_rounded),
+                            ),
+                            IconButton(
+                              onPressed: () =>
+                                  startMigration(context, mangaId, data),
+                              icon: const Icon(Icons.swap_horiz_rounded),
+                              tooltip: context.l10n.migrate,
+                            ),
+                            PopupMenuButton<void>(
+                              icon: const Icon(Icons.open_in_new_rounded),
+                              tooltip: context.l10n.openInWeb,
+                              itemBuilder: (context) => [
+                                if (data?.realUrl != null)
+                                  PopupMenuItem(
+                                    onTap: () => openInBrowser(data!.realUrl!),
+                                    child: Text(
+                                      context.l10n.openSourceInBrowser,
+                                    ),
+                                  ),
+                                PopupMenuItem(
+                                  onTap: openOnServer,
+                                  child: Text(context.l10n.openOnServer),
+                                ),
+                              ],
+                              popUpAnimationStyle: context.motionStyle,
+                            ),
+                          ],
+                          // Local-source files already live on the server, so
+                          // "Download to server" is meaningless there — same
+                          // gate Komikku applies to local/stub sources.
+                          if (!(data?.isLocalSource).ifNull())
+                            ChapterDownloadPresetsButton(
+                              chapterList: bulkActionsChapterList,
+                              refresh: refresh,
+                            ),
+                          Builder(
+                            builder: (context) => IconButton(
+                              onPressed: () {
+                                if (context.isTablet) {
+                                  Scaffold.of(context).openEndDrawer();
+                                } else {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: KBorderRadius.rT16.radius,
+                                    ),
+                                    clipBehavior: Clip.hardEdge,
+                                    builder: (_) =>
+                                        MangaChapterOrganizer(mangaId: mangaId),
+                                    sheetAnimationStyle: context.motionStyle,
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.filter_list_rounded),
                             ),
                           ),
-                      ],
-                    ),
+                          if (!context.isTablet)
+                            PopupMenuButton(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: KBorderRadius.r16.radius,
+                              ),
+                              icon: const Icon(Icons.more_vert_rounded),
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  onTap: () => Future.microtask(() {
+                                    if (!context.mounted) return null;
+                                    return showDialog(
+                                      context: context,
+                                      builder: (context) =>
+                                          EditMangaCategoryDialog(
+                                            mangaId: mangaId,
+                                          ),
+                                      animationStyle: context.motionStyle,
+                                    );
+                                  }),
+                                  child: Text(context.l10n.editCategory),
+                                ),
+                                PopupMenuItem(
+                                  onTap: () =>
+                                      startMigration(context, mangaId, data),
+                                  child: Text(context.l10n.migrate),
+                                ),
+                                PopupMenuItem(
+                                  onTap: () => refresh(true),
+                                  child: Text(context.l10n.refresh),
+                                ),
+                                if (data?.realUrl != null)
+                                  PopupMenuItem(
+                                    onTap: () => openInBrowser(data!.realUrl!),
+                                    child: Text(
+                                      context.l10n.openSourceInBrowser,
+                                    ),
+                                  ),
+                                PopupMenuItem(
+                                  onTap: openOnServer,
+                                  child: Text(context.l10n.openOnServer),
+                                ),
+                              ],
+                              popUpAnimationStyle: context.motionStyle,
+                            ),
+                        ],
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+          // Edge-drag would open this on phones, where the organizer is a
+          // bottom sheet instead — and it eats the system back gesture.
+          endDrawerEnableOpenDragGesture: false,
+          endDrawer: Drawer(
+            shape: const RoundedRectangleBorder(),
+            width: kDrawerWidth,
+            child: MangaChapterOrganizer(mangaId: mangaId),
+          ),
+          // Always present while nothing is selected, even when there is no
+          // chapter to open yet: the shelf's back-to-top button morphs into this
+          // one, and a Hero that comes and goes makes the transition jump.
+          floatingActionButton: selectedChapters.value.isEmpty
+              ? ReadFabHero(
+                  child: BrandFab(
+                    label: Text(
+                      data?.lastReadChapter?.hasReadingProgress == true
+                          ? context.l10n.resume
+                          : context.l10n.start,
+                    ),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    onPressed: firstUnreadChapter == null
+                        ? null
+                        : () {
+                            final chapter = firstUnreadChapter;
+                            ReaderRoute(
+                              mangaId: chapter.mangaId,
+                              chapterId: chapter.id,
+                              showReaderLayoutAnimation: true,
+                            ).push(context);
+                          },
+                  ),
+                )
+              : null,
+          // Banner above the content, not over it: the hero owns the whole top
+          // of this screen and a floating banner cuts the cover in half.
+          // Its own layer so the push/pop slide translates this raster
+          // instead of repainting the whole page every frame.
+          body: RepaintBoundary(
+            child: Column(
+              children: [
+                ServerUnreachableBanner(onRetry: refresh),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      NotificationListener<ScrollNotification>(
+                        onNotification: (n) {
+                          if (n.metrics.axis == Axis.vertical) {
+                            scrollPx.value = n.metrics.pixels;
+                          }
+                          return false;
+                        },
+                        child: data != null
+                            ? context.isTablet
+                                  ? BigScreenMangaDetails(
+                                      chapterList: chapterListEntries,
+                                      manga: data,
+                                      mangaId: mangaId,
+                                      onRefresh: refresh,
+                                      onDescriptionRefresh: mangaRefresh,
+                                      onListRefresh: chapterListRefresh,
+                                      selectedChapters: selectedChapters,
+                                    )
+                                  : SmallScreenMangaDetails(
+                                      chapterList: chapterListEntries,
+                                      manga: data,
+                                      mangaId: mangaId,
+                                      onRefresh: refresh,
+                                      onDescriptionRefresh: mangaRefresh,
+                                      onListRefresh: chapterListRefresh,
+                                      selectedChapters: selectedChapters,
+                                    )
+                            : Emoticons(
+                                title: context.l10n.noMangaFound,
+                                button: TextButton(
+                                  onPressed: refresh,
+                                  child: Text(context.l10n.refresh),
+                                ),
+                              ),
+                      ),
+                      if (selectedChapters.value.isNotEmpty)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: MultiChaptersActionsBottomAppBar(
+                            afterOptionSelected: chapterListRefresh,
+                            selectedChapters: selectedChapters,
+                            chapterList: filteredChapterList.value,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          refresh: refresh,
-          wrapper: (body) => Scaffold(
-            appBar: AppBar(title: Text(context.l10n.manga)),
-            body: body,
-          ),
+        ),
+        refresh: refresh,
+        wrapper: (body) => Scaffold(
+          appBar: AppBar(title: Text(context.l10n.manga)),
+          body: body,
         ),
       ),
     );
   }
 }
 
-/// Shows [skeleton] until the route's push transition has settled, then
-/// [content] — but only when the data was *not* already there when the page was
-/// mounted.
+/// Shows [skeleton] until the route's push transition has settled, then builds
+/// [content].
 ///
-/// Two reasons. Swapping the whole subtree while the page is still sliding
-/// rebuilds everything in the middle of the animation, which is the frame that
-/// showed up red on the UI thread. And when the data is already cached the page
-/// has no reason to sit on the frame at all, so that case is not delayed.
+/// [content] is what subscribes to the page's providers, so holding it back
+/// means the request does not even start until the slide is over: no JSON
+/// parse, no model mapping and no subtree build competing with the animation
+/// for the UI thread. The frame costs nothing while it is up, so the transition
+/// gets the whole frame budget.
 class _DetailsContentGate extends StatefulWidget {
-  const _DetailsContentGate({
-    required this.hasData,
-    required this.skeleton,
-    required this.content,
-  });
+  const _DetailsContentGate({required this.skeleton, required this.content});
 
-  final bool hasData;
   final Widget Function() skeleton;
   final Widget Function() content;
 
@@ -531,7 +539,6 @@ class _DetailsContentGate extends StatefulWidget {
 }
 
 class _DetailsContentGateState extends State<_DetailsContentGate> {
-  late final bool _hadDataAtMount = widget.hasData;
   bool _settled = false;
   Animation<double>? _routeAnimation;
 
@@ -563,10 +570,8 @@ class _DetailsContentGateState extends State<_DetailsContentGate> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final showContent = widget.hasData && (_hadDataAtMount || _settled);
-    return showContent ? widget.content() : widget.skeleton();
-  }
+  Widget build(BuildContext context) =>
+      _settled ? widget.content() : widget.skeleton();
 }
 
 class MultiSelectPopupButton extends StatelessWidget {
