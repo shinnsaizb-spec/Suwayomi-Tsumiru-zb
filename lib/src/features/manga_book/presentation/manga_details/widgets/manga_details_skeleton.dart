@@ -123,141 +123,145 @@ class MangaDetailsSkeleton extends ConsumerWidget {
           onPressed: () {},
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // The immersive header: blurred cover, accent tint, then the cover and
-          // title block — the same stack the loaded page draws, so the backdrop
-          // does not appear out of nowhere when the data arrives.
-          Stack(
-            children: [
-              if (hasCover)
+      // Its own layer: the page is sliding while this is on screen, and a
+      // boundary means the slide translates the raster instead of repainting it.
+      body: RepaintBoundary(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            // The immersive header: blurred cover, accent tint, then the cover and
+            // title block — the same stack the loaded page draws, so the backdrop
+            // does not appear out of nowhere when the data arrives.
+            Stack(
+              children: [
+                if (hasCover)
+                  Positioned.fill(
+                    child: CoverBlur(imageUrl: cached!.thumbnailUrl),
+                  )
+                else
+                  Positioned.fill(child: ColoredBox(color: placeholder)),
                 Positioned.fill(
-                  child: CoverBlur(imageUrl: cached!.thumbnailUrl),
-                )
-              else
-                Positioned.fill(child: ColoredBox(color: placeholder)),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        scheme.primary.withValues(alpha: 0.30),
-                        surface.withValues(alpha: 0.55),
-                      ],
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          scheme.primary.withValues(alpha: 0.30),
+                          surface.withValues(alpha: 0.55),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        surface.withValues(alpha: 0.10),
-                        surface.withValues(alpha: 0.70),
-                        surface,
-                      ],
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          surface.withValues(alpha: 0.10),
+                          surface.withValues(alpha: 0.70),
+                          surface,
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                // The loaded page's own content sees statusBar + kToolbarHeight
-                // here (the Scaffold hands the description an inset that already
-                // includes the bar), while this frame's Scaffold only reports
-                // the status bar. Adding the toolbar height lands the cover
-                // exactly where the loaded page puts it; without it everything
-                // sat one bar too high until the data arrived.
-                padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
-                ),
-                child: cached != null
-                    ? MangaCoverDescriptiveListTile(
-                        manga: cached,
-                        showBadges: false,
-                        titleMaxLines: null,
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: MangaCoverHero(
-                            tag: mangaCoverHeroTag(mangaId),
-                            child: SizedBox(
-                              width: 110,
-                              height: 165,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: placeholder,
-                                  borderRadius: BorderRadius.circular(8),
+                Padding(
+                  // The loaded page's own content sees statusBar + kToolbarHeight
+                  // here (the Scaffold hands the description an inset that already
+                  // includes the bar), while this frame's Scaffold only reports
+                  // the status bar. Adding the toolbar height lands the cover
+                  // exactly where the loaded page puts it; without it everything
+                  // sat one bar too high until the data arrived.
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+                  ),
+                  child: cached != null
+                      ? MangaCoverDescriptiveListTile(
+                          manga: cached,
+                          showBadges: false,
+                          titleMaxLines: null,
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: MangaCoverHero(
+                              tag: mangaCoverHeroTag(mangaId),
+                              child: SizedBox(
+                                width: 110,
+                                height: 165,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: placeholder,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-              ),
-              const Positioned.fill(child: SizedBox.shrink()),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Action row: the real buttons in their default state, so only the
-          // icons' "active" highlight changes once the data lands.
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: MangaActionButton(
-                    icon: const Icon(Icons.favorite_border_rounded),
-                    label: context.l10n.addToLibrary,
-                    onPressed: () {},
-                  ),
                 ),
-                Expanded(
-                  child: MangaActionButton(
-                    icon: const Icon(Icons.sync_rounded),
-                    label: context.l10n.tracking,
-                    onPressed: () {},
-                  ),
-                ),
-                if (ref.watch(offlineEnabledProvider))
-                  Expanded(child: SeriesOfflineButton(mangaId: mangaId)),
-                Expanded(
-                  child: MangaActionButton(
-                    icon: const Icon(Icons.public_rounded),
-                    label: context.l10n.webView,
-                    onPressed: () {},
-                  ),
-                ),
+                const Positioned.fill(child: SizedBox.shrink()),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          // The rating row is fixed furniture, and it reads its own provider
-          // rather than the details query — so it is drawn for real here: the
-          // label and five empty stars are on screen immediately, and the stars
-          // light up as soon as the stored rating resolves.
-          MangaRatingBar(mangaId: mangaId),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < 8; i++) ...[
-                  bar(),
-                  const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            // Action row: the real buttons in their default state, so only the
+            // icons' "active" highlight changes once the data lands.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: MangaActionButton(
+                      icon: const Icon(Icons.favorite_border_rounded),
+                      label: context.l10n.addToLibrary,
+                      onPressed: () {},
+                    ),
+                  ),
+                  Expanded(
+                    child: MangaActionButton(
+                      icon: const Icon(Icons.sync_rounded),
+                      label: context.l10n.tracking,
+                      onPressed: () {},
+                    ),
+                  ),
+                  if (ref.watch(offlineEnabledProvider))
+                    Expanded(child: SeriesOfflineButton(mangaId: mangaId)),
+                  Expanded(
+                    child: MangaActionButton(
+                      icon: const Icon(Icons.public_rounded),
+                      label: context.l10n.webView,
+                      onPressed: () {},
+                    ),
+                  ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            // The rating row is fixed furniture, and it reads its own provider
+            // rather than the details query — so it is drawn for real here: the
+            // label and five empty stars are on screen immediately, and the stars
+            // light up as soon as the stored rating resolves.
+            MangaRatingBar(mangaId: mangaId),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < 8; i++) ...[
+                    bar(),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
