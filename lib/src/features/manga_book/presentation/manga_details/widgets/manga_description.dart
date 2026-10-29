@@ -4,8 +4,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -21,7 +19,6 @@ import '../../../../../utils/misc/toast/toast.dart';
 import '../../../../../utils/motion/reduce_motion.dart';
 import '../../../../../utils/theme/brand.dart';
 import '../../../../../widgets/manga_cover/list/manga_cover_descriptive_list_tile.dart';
-import '../../../../../widgets/server_image.dart';
 import '../../../../offline/data/offline_repository.dart';
 import '../../../../offline/presentation/series_offline_button.dart';
 import '../../../../tracking/presentation/hub/track_sheet.dart';
@@ -29,6 +26,7 @@ import '../../../domain/manga/manga_model.dart';
 import '../controller/next_update_controller.dart';
 import '../server_web_url.dart';
 import 'manga_action_button.dart';
+import 'cover_blur.dart';
 import 'manga_rating_bar.dart';
 import 'manga_user_tags_row.dart';
 import 'tag_actions_menu.dart';
@@ -151,46 +149,7 @@ class MangaDescription extends HookConsumerWidget {
         Stack(
           children: [
             if (manga.thumbnailUrl.isNotBlank)
-              Positioned.fill(
-                child: ClipRect(
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: ColorFiltered(
-                      colorFilter: BrandColors.of(context).neutral
-                          ? const ColorFilter.matrix(<double>[
-                              0.2126,
-                              0.7152,
-                              0.0722,
-                              0,
-                              0,
-                              0.2126,
-                              0.7152,
-                              0.0722,
-                              0,
-                              0,
-                              0.2126,
-                              0.7152,
-                              0.0722,
-                              0,
-                              0,
-                              0,
-                              0,
-                              0,
-                              1,
-                              0,
-                            ])
-                          : const ColorFilter.mode(
-                              Colors.transparent,
-                              BlendMode.dst,
-                            ),
-                      child: ServerImage(
-                        imageUrl: manga.thumbnailUrl ?? "",
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              Positioned.fill(child: CoverBlur(imageUrl: manga.thumbnailUrl)),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(

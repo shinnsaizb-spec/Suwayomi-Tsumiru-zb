@@ -4,8 +4,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -17,7 +15,7 @@ import '../../../../offline/data/server_reachability.dart';
 import '../../../../offline/presentation/series_offline_button.dart';
 import '../../../../../widgets/manga_cover/list/manga_cover_descriptive_list_tile.dart';
 import '../../../../../widgets/manga_cover/manga_cover_hero.dart';
-import '../../../../../widgets/server_image.dart';
+import 'cover_blur.dart';
 import 'manga_action_button.dart';
 import 'manga_rating_bar.dart';
 import '../../../../library/presentation/library/controller/library_manga_list.dart';
@@ -135,15 +133,7 @@ class MangaDetailsSkeleton extends ConsumerWidget {
             children: [
               if (hasCover)
                 Positioned.fill(
-                  child: ClipRect(
-                    child: ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: ServerImage(
-                        imageUrl: cached!.thumbnailUrl ?? '',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
+                  child: CoverBlur(imageUrl: cached!.thumbnailUrl),
                 )
               else
                 Positioned.fill(child: ColoredBox(color: placeholder)),
