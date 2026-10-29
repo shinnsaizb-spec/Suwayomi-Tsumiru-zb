@@ -1,5 +1,4 @@
 // lib/src/utils/theme/app_theme_builder.dart
-import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -228,17 +227,24 @@ class _TimedPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // Slide in from the right on every platform instead of the stock
-    // zoom/fade-through. The series page is meant to arrive from the edge, and
-    // using one builder everywhere keeps the motion identical on phones and
-    // desktop.
-    const base = CupertinoPageTransitionsBuilder();
-    return base.buildTransitions(
-      route,
-      context,
-      animation,
-      secondaryAnimation,
-      child,
+    // A plain slide from the right, with the page underneath staying put.
+    //
+    // Not Cupertino's version on purpose: that one also animates the outgoing
+    // page (parallax) and eases with a long, slow tail, so at 500ms the motion
+    // reads as "it sped up, then hung". One moving layer with a single ease-out
+    // curve is both steadier to look at and cheaper to raster — the static page
+    // behind is reused as-is.
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(1, 0),
+        end: Offset.zero,
+      ).animate(curved),
+      child: child,
     );
   }
 }

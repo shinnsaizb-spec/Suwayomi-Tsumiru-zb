@@ -434,62 +434,66 @@ class MangaDetailsScreen extends HookConsumerWidget {
                 : null,
             // Banner above the content, not over it: the hero owns the whole top
             // of this screen and a floating banner cuts the cover in half.
-            body: Column(
-              children: [
-                ServerUnreachableBanner(onRetry: refresh),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      NotificationListener<ScrollNotification>(
-                        onNotification: (n) {
-                          if (n.metrics.axis == Axis.vertical) {
-                            scrollPx.value = n.metrics.pixels;
-                          }
-                          return false;
-                        },
-                        child: data != null
-                            ? context.isTablet
-                                  ? BigScreenMangaDetails(
-                                      chapterList: chapterListEntries,
-                                      manga: data,
-                                      mangaId: mangaId,
-                                      onRefresh: refresh,
-                                      onDescriptionRefresh: mangaRefresh,
-                                      onListRefresh: chapterListRefresh,
-                                      selectedChapters: selectedChapters,
-                                    )
-                                  : SmallScreenMangaDetails(
-                                      chapterList: chapterListEntries,
-                                      manga: data,
-                                      mangaId: mangaId,
-                                      onRefresh: refresh,
-                                      onDescriptionRefresh: mangaRefresh,
-                                      onListRefresh: chapterListRefresh,
-                                      selectedChapters: selectedChapters,
-                                    )
-                            : Emoticons(
-                                title: context.l10n.noMangaFound,
-                                button: TextButton(
-                                  onPressed: refresh,
-                                  child: Text(context.l10n.refresh),
+            // Its own layer so the push/pop slide translates this raster
+            // instead of repainting the whole page every frame.
+            body: RepaintBoundary(
+              child: Column(
+                children: [
+                  ServerUnreachableBanner(onRetry: refresh),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        NotificationListener<ScrollNotification>(
+                          onNotification: (n) {
+                            if (n.metrics.axis == Axis.vertical) {
+                              scrollPx.value = n.metrics.pixels;
+                            }
+                            return false;
+                          },
+                          child: data != null
+                              ? context.isTablet
+                                    ? BigScreenMangaDetails(
+                                        chapterList: chapterListEntries,
+                                        manga: data,
+                                        mangaId: mangaId,
+                                        onRefresh: refresh,
+                                        onDescriptionRefresh: mangaRefresh,
+                                        onListRefresh: chapterListRefresh,
+                                        selectedChapters: selectedChapters,
+                                      )
+                                    : SmallScreenMangaDetails(
+                                        chapterList: chapterListEntries,
+                                        manga: data,
+                                        mangaId: mangaId,
+                                        onRefresh: refresh,
+                                        onDescriptionRefresh: mangaRefresh,
+                                        onListRefresh: chapterListRefresh,
+                                        selectedChapters: selectedChapters,
+                                      )
+                              : Emoticons(
+                                  title: context.l10n.noMangaFound,
+                                  button: TextButton(
+                                    onPressed: refresh,
+                                    child: Text(context.l10n.refresh),
+                                  ),
                                 ),
-                              ),
-                      ),
-                      if (selectedChapters.value.isNotEmpty)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: MultiChaptersActionsBottomAppBar(
-                            afterOptionSelected: chapterListRefresh,
-                            selectedChapters: selectedChapters,
-                            chapterList: filteredChapterList.value,
-                          ),
                         ),
-                    ],
+                        if (selectedChapters.value.isNotEmpty)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: MultiChaptersActionsBottomAppBar(
+                              afterOptionSelected: chapterListRefresh,
+                              selectedChapters: selectedChapters,
+                              chapterList: filteredChapterList.value,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           refresh: refresh,
